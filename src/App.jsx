@@ -40,7 +40,8 @@ const JobMatchingFlowchart = () => {
     commuteOption: '通勤可',
     acceptedCommuteMethods: ['自家用車'],
     fee: '',
-    feeType: '固定'
+    feeType: '固定',
+    vacancies: '' // 欠員数を追加
   });
 
   const [editingJobId, setEditingJobId] = useState(null);
@@ -60,7 +61,7 @@ const JobMatchingFlowchart = () => {
   const canvasRef = useRef(null);
   const treeContainerRef = useRef(null);
   const [nodePositions, setNodePositions] = useState({});
-  const [zoom, setZoom] = useState(0.6);
+  const [zoom, setZoom] = useState(1);
   const [flowTree, setFlowTree] = useState(null);
   const [hoveredNode, setHoveredNode] = useState(null);
   const [treeContentSize, setTreeContentSize] = useState({ width: 0, height: 0 });
@@ -79,7 +80,13 @@ const JobMatchingFlowchart = () => {
   };
 
   const handleFitToScreen = () => {
-    setZoom(0.6);
+    if (treeContainerRef.current && treeContentSize.width > 0) {
+      const container = treeContainerRef.current;
+      const scaleX = (container.clientWidth - 40) / treeContentSize.width;
+      const scaleY = (container.clientHeight - 40) / treeContentSize.height;
+      const newZoom = Math.min(scaleX, scaleY, 1);
+      setZoom(newZoom);
+    }
   };
 
   const calculateMatchScore = (job) => {
@@ -340,7 +347,6 @@ const JobMatchingFlowchart = () => {
           };
           parentNode.children.push(relaxNode);
           
-          // 緩和承認の分岐（条件緩和できた場合）
           const relaxAcceptedNode = {
             id: `${relaxNode.id}-accepted`,
             level: level + 1,
@@ -353,7 +359,6 @@ const JobMatchingFlowchart = () => {
           relaxNode.children.push(relaxAcceptedNode);
           buildNode(relaxAcceptedNode, remainingConditions.slice(1), level + 2);
           
-          // 緩和拒否の分岐（条件緩和できなかった場合）
           const relaxRejectedNode = {
             id: `${relaxNode.id}-rejected`,
             level: level + 1,
@@ -366,7 +371,6 @@ const JobMatchingFlowchart = () => {
           };
           relaxNode.children.push(relaxRejectedNode);
           
-          // 緩和拒否の場合は終了ノードを追加
           const rejectedFailNode = {
             id: `${relaxRejectedNode.id}-fail`,
             level: level + 2,
@@ -406,25 +410,29 @@ const JobMatchingFlowchart = () => {
     return rootNode;
   };
 
-  const calculateNodePositions = (node, x = 500, y = 50, positions = {}) => {
+  const calculateNodePositions = (node, x = 800, y = 50, positions = {}, levelWidth = {}) => {
     positions[node.id] = { x, y };
+    
+    if (!levelWidth[node.level]) {
+      levelWidth[node.level] = 0;
+    }
+    levelWidth[node.level] = Math.max(levelWidth[node.level], x + 250);
 
     if (node.children && node.children.length > 0) {
-      const childSpacing = 500;  // 300 → 500に拡大
+      const childSpacing = 600;
       const totalWidth = (node.children.length - 1) * childSpacing;
       let startX = x - totalWidth / 2;
 
       node.children.forEach((child, index) => {
         const childX = startX + index * childSpacing;
-        const childY = y + 180;
-        calculateNodePositions(child, childX, childY, positions);
+        const childY = y + 200;
+        calculateNodePositions(child, childX, childY, positions, levelWidth);
       });
     }
 
     return positions;
   };
 
-  // 座標を正規化（負の座標を正に変換）
   const normalizePositions = (positions) => {
     const posArray = Object.values(positions);
     if (posArray.length === 0) return positions;
@@ -432,7 +440,6 @@ const JobMatchingFlowchart = () => {
     const minX = Math.min(...posArray.map(p => p.x));
     const minY = Math.min(...posArray.map(p => p.y));
     
-    // 負の座標がある場合、全体をシフト
     const offsetX = minX < 0 ? -minX + 50 : 0;
     const offsetY = minY < 0 ? -minY + 50 : 0;
     
@@ -517,14 +524,13 @@ const JobMatchingFlowchart = () => {
     const minFee = fees.length > 0 ? Math.min(...fees) : 0;
     const maxFee = fees.length > 0 ? Math.max(...fees) : 0;
 
-    // 高Feeノードの判定と強調表示
-    const isHighFeeNode = maxFee >= 35;  // 35万円以上
-    const isLowFeeNode = maxFee > 0 && maxFee <= 20;  // 20万円まで
+    const isHighFeeNode = maxFee >= 35;
+    const isLowFeeNode = maxFee > 0 && maxFee <= 20;
 
-    if (!isOnTrackingPath) {  // 追跡中でない場合のみFeeで色付け
+    if (!isOnTrackingPath) {
       if (isHighFeeNode && node.jobs.length > 0) {
         borderColor = 'border-amber-500';
-        bgColor = bgColor.replace('-50', '-100');  // より濃い色に
+        bgColor = bgColor.replace('-50', '-100');
       } else if (isLowFeeNode && node.jobs.length > 0) {
         borderColor = 'border-gray-400';
       }
@@ -539,13 +545,13 @@ const JobMatchingFlowchart = () => {
           style={{
             left: `${pos.x}px`,
             top: `${pos.y}px`,
-            width: '220px',  // 160px → 220px
+            width: '220px',
             zIndex: isOnTrackingPath ? 30 : 20
           }}
           onMouseEnter={() => setHoveredNode(node.id)}
           onMouseLeave={() => setHoveredNode(null)}
         >
-          <div className="p-3">  {/* p-2 → p-3 */}
+          <div className="p-3">
             <div className={`font-bold text-xs mb-1 ${iconColor} flex items-center justify-center`}>
               {node.type === 'start' && <span className="text-base">🎯</span>}
               {node.type === 'pass' && <span className="text-base">✅</span>}
@@ -561,7 +567,6 @@ const JobMatchingFlowchart = () => {
               <div className="text-center">
                 <div className="text-xs font-bold text-emerald-800 mb-2">✅ 紹介可能</div>
                 
-                {/* 案件リスト */}
                 <div className="text-left space-y-1 max-h-32 overflow-y-auto">
                   {node.jobs.slice(0, 5).map(job => (
                     <div key={job.id} className="text-xs border-b border-emerald-200 pb-1">
@@ -574,6 +579,9 @@ const JobMatchingFlowchart = () => {
                           }`}>
                             💰{job.fee}万
                           </span>
+                        )}
+                        {job.vacancies && (
+                          <span className="text-gray-600 text-xs">👥{job.vacancies}名</span>
                         )}
                       </div>
                     </div>
@@ -599,7 +607,6 @@ const JobMatchingFlowchart = () => {
                   {node.condition || '開始'}
                 </div>
                 
-                {/* 案件リスト */}
                 {node.jobs.length > 0 ? (
                   <div className="text-left space-y-1 max-h-32 overflow-y-auto">
                     {node.jobs.slice(0, 5).map(job => (
@@ -607,14 +614,19 @@ const JobMatchingFlowchart = () => {
                         <div className="font-semibold text-gray-800 truncate" title={job.name}>
                           {job.name}
                         </div>
-                        {job.fee && (
-                          <div className={`font-bold text-xs ${
-                            parseInt(job.fee) >= 35 ? 'text-amber-600' : 
-                            parseInt(job.fee) <= 20 ? 'text-gray-500' : 'text-blue-600'
-                          }`}>
-                            💰{job.fee}万
-                          </div>
-                        )}
+                        <div className="flex justify-between items-center">
+                          {job.fee && (
+                            <span className={`font-bold text-xs ${
+                              parseInt(job.fee) >= 35 ? 'text-amber-600' : 
+                              parseInt(job.fee) <= 20 ? 'text-gray-500' : 'text-blue-600'
+                            }`}>
+                              💰{job.fee}万
+                            </span>
+                          )}
+                          {job.vacancies && (
+                            <span className="text-gray-600 text-xs">👥{job.vacancies}名</span>
+                          )}
+                        </div>
                       </div>
                     ))}
                     {node.jobs.length > 5 && (
@@ -643,7 +655,7 @@ const JobMatchingFlowchart = () => {
           <div
             className="absolute bg-white border-2 border-indigo-500 rounded-lg shadow-2xl p-3 z-50"
             style={{
-              left: `${pos.x + 230}px`,  // 170 → 230（ボックス幅220 + マージン10）
+              left: `${pos.x + 230}px`,
               top: `${pos.y}px`,
               width: '250px'
             }}
@@ -660,7 +672,10 @@ const JobMatchingFlowchart = () => {
                   <div className="font-semibold">{job.name}</div>
                   <div className="text-gray-600 flex justify-between">
                     <span>Fee: {job.fee}万</span>
-                    <span>スコア: {calculateMatchScore(job)}</span>
+                    {job.vacancies && <span>👥{job.vacancies}名</span>}
+                  </div>
+                  <div className="text-gray-600">
+                    スコア: {calculateMatchScore(job)}
                   </div>
                 </div>
               ))}
@@ -685,9 +700,7 @@ const JobMatchingFlowchart = () => {
     const minY = Math.min(...positions.map(p => p.y));
     const maxY = Math.max(...positions.map(p => p.y));
     
-    // マージンを含めたサイズ計算
-    // 注: normalizePositionsで既に左と上に50pxのマージンが追加されている
-    const marginRight = 550;  // 450 → 550（ボックス幅220px + ホバーボックス250px + 余白）
+    const marginRight = 550;
     const marginBottom = 150;
     
     const canvasWidth = maxX - minX + marginRight;
@@ -696,7 +709,6 @@ const JobMatchingFlowchart = () => {
     canvas.width = canvasWidth;
     canvas.height = canvasHeight;
     
-    // コンテンツサイズを保存
     setTreeContentSize({ width: canvasWidth, height: canvasHeight });
     
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -715,33 +727,28 @@ const JobMatchingFlowchart = () => {
 
         const isOnPath = trackingPath?.includes(node.id) && trackingPath?.includes(child.id);
         
-        // 子ノードのFeeを計算
         const childFees = child.jobs?.map(j => parseInt(j.fee) || 0).filter(f => f > 0) || [];
         const childMaxFee = childFees.length > 0 ? Math.max(...childFees) : 0;
-        const isHighFeeChild = childMaxFee >= 35;  // 35万円以上
+        const isHighFeeChild = childMaxFee >= 35;
 
         ctx.beginPath();
-        ctx.moveTo(nodePos.x + 110, nodePos.y + 80);  // 80 → 110（220pxの中心）
-        ctx.lineTo(childPos.x + 110, childPos.y);     // 80 → 110
+        ctx.moveTo(nodePos.x + 110, nodePos.y + 80);
+        ctx.lineTo(childPos.x + 110, childPos.y);
 
         if (isOnPath) {
           ctx.strokeStyle = '#9333ea';
           ctx.lineWidth = 4;
         } else if (child.type === 'pass' || child.type === 'success') {
           ctx.strokeStyle = '#22c55e';
-          // 高Fee案件への経路を太くする
           ctx.lineWidth = isHighFeeChild ? 3 : 2;
         } else if (child.type === 'relax') {
-          // 高Fee案件への緩和経路を太くする
           ctx.strokeStyle = isHighFeeChild ? '#f59e0b' : '#eab308';
           ctx.lineWidth = isHighFeeChild ? 3 : 2;
           ctx.setLineDash([4, 4]);
         } else if (child.type === 'relax-accepted') {
-          // 緩和承認経路（グリーン系）
           ctx.strokeStyle = isHighFeeChild ? '#65a30d' : '#84cc16';
           ctx.lineWidth = isHighFeeChild ? 3 : 2;
         } else if (child.type === 'relax-rejected') {
-          // 緩和拒否経路（オレンジ系）
           ctx.strokeStyle = '#f97316';
           ctx.lineWidth = 2;
           ctx.setLineDash([6, 3]);
@@ -775,7 +782,8 @@ const JobMatchingFlowchart = () => {
         commuteOption: '通勤可',
         acceptedCommuteMethods: ['自家用車'],
         fee: '',
-        feeType: '固定'
+        feeType: '固定',
+        vacancies: ''
       });
     }
   };
@@ -868,7 +876,7 @@ const JobMatchingFlowchart = () => {
   };
 
   const exportToExcel = () => {
-    const headers = ['案件名', '月収', '勤務形態', '性別', '年齢', '通勤時間', '通勤方法', '受入通勤手段', 'Fee', 'マッチングスコア', '状態'];
+    const headers = ['案件名', '月収', '勤務形態', '性別', '年齢', '通勤時間', '通勤方法', '受入通勤手段', 'Fee', '欠員数', 'マッチングスコア', '状態'];
     const analysisResults = jobs.map(analyzeJobDetail);
     
     const rows = analysisResults.map(result => [
@@ -881,6 +889,7 @@ const JobMatchingFlowchart = () => {
       result.job.commuteOption,
       result.job.acceptedCommuteMethods?.join('、') || '',
       result.job.fee,
+      result.job.vacancies || '-',
       result.score,
       result.isImmediateMatch ? 'すぐ紹介可能' : result.isPossibleMatch ? '条件確認必要' : '紹介不可'
     ]);
@@ -893,7 +902,6 @@ const JobMatchingFlowchart = () => {
     link.click();
   };
 
-  // 条件の比較情報を取得
   const getConditionCompareInfo = (job, conditionId) => {
     const conditionNames = {
       age: '年齢',
@@ -977,10 +985,8 @@ const JobMatchingFlowchart = () => {
     }
   }, [showAnalysis, jobs, seekerConditions]);
 
-  // 求職者情報カードコンポーネント（修正版 - 全情報表示）
   const SeekerInfoCard = () => (
     <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg shadow-lg p-3 text-white">
-      {/* 基本情報セクション */}
       <div className="mb-3">
         <h3 className="font-bold text-sm mb-2 flex items-center">
           <User className="mr-1" size={16} />
@@ -1018,7 +1024,6 @@ const JobMatchingFlowchart = () => {
         </div>
       </div>
       
-      {/* マッチング状況セクション */}
       <div className="border-t border-white border-opacity-30 pt-3">
         <h3 className="font-bold text-sm mb-2 flex items-center">
           <Target className="mr-1" size={16} />
@@ -1061,7 +1066,6 @@ const JobMatchingFlowchart = () => {
 
         {!showAnalysis ? (
           <div className="space-y-4">
-            {/* 求職者条件入力 */}
             <div className="bg-white rounded-lg shadow-lg p-4">
               <h2 className="text-xl font-bold text-indigo-600 mb-3 flex items-center">
                 <span className="bg-indigo-600 text-white rounded-full w-7 h-7 flex items-center justify-center mr-2 text-sm">1</span>
@@ -1075,7 +1079,7 @@ const JobMatchingFlowchart = () => {
                     type="number"
                     value={seekerConditions.age}
                     onChange={(e) => setSeekerConditions({...seekerConditions, age: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
                     placeholder="例: 25"
                   />
                 </div>
@@ -1085,7 +1089,7 @@ const JobMatchingFlowchart = () => {
                   <select
                     value={seekerConditions.gender}
                     onChange={(e) => setSeekerConditions({...seekerConditions, gender: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
                   >
                     <option value="男性">男性</option>
                     <option value="女性">女性</option>
@@ -1098,7 +1102,7 @@ const JobMatchingFlowchart = () => {
                     type="number"
                     value={seekerConditions.monthlySalary}
                     onChange={(e) => setSeekerConditions({...seekerConditions, monthlySalary: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
                     placeholder="例: 30"
                   />
                 </div>
@@ -1108,7 +1112,7 @@ const JobMatchingFlowchart = () => {
                   <select
                     value={seekerConditions.shiftWork}
                     onChange={(e) => setSeekerConditions({...seekerConditions, shiftWork: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
                   >
                     {shiftWorkOptions.map(opt => (
                       <option key={opt} value={opt}>{opt}</option>
@@ -1122,7 +1126,7 @@ const JobMatchingFlowchart = () => {
                     type="number"
                     value={seekerConditions.commuteTime}
                     onChange={(e) => setSeekerConditions({...seekerConditions, commuteTime: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
                     placeholder="例: 30"
                   />
                 </div>
@@ -1132,7 +1136,7 @@ const JobMatchingFlowchart = () => {
                   <select
                     value={seekerConditions.commutePreference}
                     onChange={(e) => setSeekerConditions({...seekerConditions, commutePreference: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
                   >
                     {commutePreferenceOptions.map(opt => (
                       <option key={opt} value={opt}>{opt}</option>
@@ -1145,7 +1149,7 @@ const JobMatchingFlowchart = () => {
                   <select
                     value={seekerConditions.commuteMethod}
                     onChange={(e) => setSeekerConditions({...seekerConditions, commuteMethod: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
                   >
                     {commuteMethods.map(method => (
                       <option key={method.value} value={method.value}>{method.label}</option>
@@ -1154,7 +1158,6 @@ const JobMatchingFlowchart = () => {
                 </div>
               </div>
 
-              {/* 優先度設定 */}
               <div className="mt-3 p-3 bg-indigo-50 rounded-lg">
                 <h3 className="font-bold text-indigo-800 mb-2 text-sm">🎯 条件の優先度設定</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
@@ -1176,7 +1179,7 @@ const JobMatchingFlowchart = () => {
                             [key]: parseInt(e.target.value)
                           }
                         })}
-                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-white text-gray-900"
                       >
                         <option value="5">最重要 ⭐⭐⭐⭐⭐</option>
                         <option value="4">重要 ⭐⭐⭐⭐</option>
@@ -1190,7 +1193,6 @@ const JobMatchingFlowchart = () => {
               </div>
             </div>
 
-            {/* 案件登録 */}
             <div className="bg-white rounded-lg shadow-lg p-4">
               <h2 className="text-xl font-bold text-indigo-600 mb-3 flex items-center">
                 <span className="bg-indigo-600 text-white rounded-full w-7 h-7 flex items-center justify-center mr-2 text-sm">2</span>
@@ -1204,7 +1206,7 @@ const JobMatchingFlowchart = () => {
                     type="text"
                     value={newJob.name}
                     onChange={(e) => setNewJob({...newJob, name: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
                     placeholder="例: トヨタ自動車"
                   />
                 </div>
@@ -1215,7 +1217,7 @@ const JobMatchingFlowchart = () => {
                     type="number"
                     value={newJob.monthlySalary}
                     onChange={(e) => setNewJob({...newJob, monthlySalary: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
                     placeholder="例: 28"
                   />
                 </div>
@@ -1225,7 +1227,7 @@ const JobMatchingFlowchart = () => {
                   <select
                     value={newJob.shiftWork}
                     onChange={(e) => setNewJob({...newJob, shiftWork: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
                   >
                     {shiftWorkOptions.map(opt => (
                       <option key={opt} value={opt}>{opt}</option>
@@ -1238,7 +1240,7 @@ const JobMatchingFlowchart = () => {
                   <select
                     value={newJob.gender}
                     onChange={(e) => setNewJob({...newJob, gender: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
                   >
                     {genderOptions.map(opt => (
                       <option key={opt} value={opt}>{opt}</option>
@@ -1252,7 +1254,7 @@ const JobMatchingFlowchart = () => {
                     type="number"
                     value={newJob.minAge}
                     onChange={(e) => setNewJob({...newJob, minAge: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
                     placeholder="例: 18"
                   />
                 </div>
@@ -1263,7 +1265,7 @@ const JobMatchingFlowchart = () => {
                     type="number"
                     value={newJob.maxAge}
                     onChange={(e) => setNewJob({...newJob, maxAge: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
                     placeholder="例: 50"
                   />
                 </div>
@@ -1274,7 +1276,7 @@ const JobMatchingFlowchart = () => {
                     type="number"
                     value={newJob.commuteTime}
                     onChange={(e) => setNewJob({...newJob, commuteTime: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
                     placeholder="例: 40"
                   />
                 </div>
@@ -1284,7 +1286,7 @@ const JobMatchingFlowchart = () => {
                   <select
                     value={newJob.commuteOption}
                     onChange={(e) => setNewJob({...newJob, commuteOption: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
                   >
                     {commuteOptionOptions.map(opt => (
                       <option key={opt} value={opt}>{opt}</option>
@@ -1298,8 +1300,19 @@ const JobMatchingFlowchart = () => {
                     type="number"
                     value={newJob.fee}
                     onChange={(e) => setNewJob({...newJob, fee: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
                     placeholder="例: 25"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">欠員数（名）</label>
+                  <input
+                    type="number"
+                    value={newJob.vacancies}
+                    onChange={(e) => setNewJob({...newJob, vacancies: e.target.value})}
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
+                    placeholder="例: 5"
                   />
                 </div>
               </div>
@@ -1342,7 +1355,6 @@ const JobMatchingFlowchart = () => {
               </button>
             </div>
 
-            {/* 登録済み案件一覧 */}
             {jobs.length > 0 && (
               <div className="bg-white rounded-lg shadow-lg p-4">
                 <div className="flex justify-between items-center mb-3">
@@ -1375,20 +1387,20 @@ const JobMatchingFlowchart = () => {
                                 type="text"
                                 value={editingJob.name}
                                 onChange={(e) => setEditingJob({...editingJob, name: e.target.value})}
-                                className="px-2 py-1 text-xs border rounded"
+                                className="px-2 py-1 text-xs border rounded bg-white text-gray-900"
                                 placeholder="案件名"
                               />
                               <input
                                 type="number"
                                 value={editingJob.monthlySalary}
                                 onChange={(e) => setEditingJob({...editingJob, monthlySalary: e.target.value})}
-                                className="px-2 py-1 text-xs border rounded"
+                                className="px-2 py-1 text-xs border rounded bg-white text-gray-900"
                                 placeholder="月収"
                               />
                               <select
                                 value={editingJob.shiftWork}
                                 onChange={(e) => setEditingJob({...editingJob, shiftWork: e.target.value})}
-                                className="px-2 py-1 text-xs border rounded"
+                                className="px-2 py-1 text-xs border rounded bg-white text-gray-900"
                               >
                                 {shiftWorkOptions.map(opt => (
                                   <option key={opt} value={opt}>{opt}</option>
@@ -1397,7 +1409,7 @@ const JobMatchingFlowchart = () => {
                               <select
                                 value={editingJob.gender}
                                 onChange={(e) => setEditingJob({...editingJob, gender: e.target.value})}
-                                className="px-2 py-1 text-xs border rounded"
+                                className="px-2 py-1 text-xs border rounded bg-white text-gray-900"
                               >
                                 {genderOptions.map(opt => (
                                   <option key={opt} value={opt}>{opt}</option>
@@ -1407,27 +1419,27 @@ const JobMatchingFlowchart = () => {
                                 type="number"
                                 value={editingJob.minAge}
                                 onChange={(e) => setEditingJob({...editingJob, minAge: e.target.value})}
-                                className="px-2 py-1 text-xs border rounded"
+                                className="px-2 py-1 text-xs border rounded bg-white text-gray-900"
                                 placeholder="最低年齢"
                               />
                               <input
                                 type="number"
                                 value={editingJob.maxAge}
                                 onChange={(e) => setEditingJob({...editingJob, maxAge: e.target.value})}
-                                className="px-2 py-1 text-xs border rounded"
+                                className="px-2 py-1 text-xs border rounded bg-white text-gray-900"
                                 placeholder="最高年齢"
                               />
                               <input
                                 type="number"
                                 value={editingJob.commuteTime}
                                 onChange={(e) => setEditingJob({...editingJob, commuteTime: e.target.value})}
-                                className="px-2 py-1 text-xs border rounded"
+                                className="px-2 py-1 text-xs border rounded bg-white text-gray-900"
                                 placeholder="通勤時間"
                               />
                               <select
                                 value={editingJob.commuteOption}
                                 onChange={(e) => setEditingJob({...editingJob, commuteOption: e.target.value})}
-                                className="px-2 py-1 text-xs border rounded"
+                                className="px-2 py-1 text-xs border rounded bg-white text-gray-900"
                               >
                                 {commuteOptionOptions.map(opt => (
                                   <option key={opt} value={opt}>{opt}</option>
@@ -1437,8 +1449,15 @@ const JobMatchingFlowchart = () => {
                                 type="number"
                                 value={editingJob.fee}
                                 onChange={(e) => setEditingJob({...editingJob, fee: e.target.value})}
-                                className="px-2 py-1 text-xs border rounded"
+                                className="px-2 py-1 text-xs border rounded bg-white text-gray-900"
                                 placeholder="Fee"
+                              />
+                              <input
+                                type="number"
+                                value={editingJob.vacancies}
+                                onChange={(e) => setEditingJob({...editingJob, vacancies: e.target.value})}
+                                className="px-2 py-1 text-xs border rounded bg-white text-gray-900"
+                                placeholder="欠員数"
                               />
                             </div>
                             <div className="flex items-center space-x-1">
@@ -1472,6 +1491,11 @@ const JobMatchingFlowchart = () => {
                                   {job.fee && (
                                     <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded-full text-xs font-bold">
                                       💰 {job.fee}万
+                                    </span>
+                                  )}
+                                  {job.vacancies && (
+                                    <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs font-bold">
+                                      👥 {job.vacancies}名
                                     </span>
                                   )}
                                   {isFavorite && <span className="text-yellow-500 text-sm">⭐</span>}
@@ -1524,12 +1548,10 @@ const JobMatchingFlowchart = () => {
               </div>
             )}
 
-            {/* 比較モード */}
             {compareMode && selectedForCompare.size > 0 && (
               <div className="bg-white rounded-lg shadow-lg p-4">
                 <h2 className="text-lg font-bold text-purple-600 mb-3">📊 案件比較 ({selectedForCompare.size}件)</h2>
                 
-                {/* 求職者情報を比較画面にも表示 */}
                 <div className="mb-3">
                   <h3 className="text-sm font-bold text-gray-700 mb-2">求職者の条件:</h3>
                   <div className="bg-indigo-50 rounded-lg p-2">
@@ -1581,6 +1603,12 @@ const JobMatchingFlowchart = () => {
                             <span>Fee:</span>
                             <span className="font-bold text-green-600">{job.fee}万</span>
                           </div>
+                          {job.vacancies && (
+                            <div className="flex justify-between">
+                              <span>欠員数:</span>
+                              <span className="font-bold text-blue-600">{job.vacancies}名</span>
+                            </div>
+                          )}
                           <div className="flex justify-between">
                             <span>勤務:</span>
                             <span>{job.shiftWork}</span>
@@ -1597,7 +1625,6 @@ const JobMatchingFlowchart = () => {
               </div>
             )}
 
-            {/* 検索履歴 */}
             {searchHistory.length > 0 && (
               <div className="bg-white rounded-lg shadow-lg p-4">
                 <h2 className="text-lg font-bold text-indigo-600 mb-2 flex items-center">
@@ -1659,10 +1686,8 @@ const JobMatchingFlowchart = () => {
               </button>
             </div>
 
-            {/* 求職者情報カード */}
             <SeekerInfoCard />
 
-            {/* 条件マトリクス表 */}
             <div className="bg-white rounded-lg shadow-lg p-3">
               <div 
                 className="flex justify-between items-center cursor-pointer hover:bg-gray-50 p-2 rounded"
@@ -1680,6 +1705,7 @@ const JobMatchingFlowchart = () => {
                       <tr>
                         <th className="px-2 py-2 text-left font-bold">案件名</th>
                         <th className="px-2 py-2 text-center font-bold">Fee</th>
+                        <th className="px-2 py-2 text-center font-bold">欠員</th>
                         <th className="px-2 py-2 text-center font-bold">年齢</th>
                         <th className="px-2 py-2 text-center font-bold">性別</th>
                         <th className="px-2 py-2 text-center font-bold">勤務</th>
@@ -1709,6 +1735,7 @@ const JobMatchingFlowchart = () => {
                               )}
                             </td>
                             <td className="px-2 py-2 text-center text-green-600 font-bold">{result.job.fee || '-'}万</td>
+                            <td className="px-2 py-2 text-center text-blue-600 font-bold">{result.job.vacancies || '-'}名</td>
                             {conditions.slice(0, 6).map(cond => (
                               <td 
                                 key={cond.id} 
@@ -1766,14 +1793,12 @@ const JobMatchingFlowchart = () => {
               )}
             </div>
 
-            {/* 電話確認シート */}
             <div className="bg-white rounded-lg shadow-lg p-3">
               <h2 className="text-lg font-bold text-green-600 mb-2 flex items-center">
                 <Phone className="mr-2" size={18} />
                 📞 電話確認シート
               </h2>
 
-              {/* すぐ紹介可能な案件 */}
               {immediateMatches.length > 0 && (
                 <div>
                   <div 
@@ -1805,6 +1830,7 @@ const JobMatchingFlowchart = () => {
                               </h4>
                               <div className="text-xs text-gray-600 mt-0.5">
                                 月収:{result.job.monthlySalary}万 | {result.job.shiftWork} | 通勤:{result.job.commuteTime}分
+                                {result.job.vacancies && <span> | 欠員:{result.job.vacancies}名</span>}
                               </div>
                             </div>
                             <div className="text-right">
@@ -1832,7 +1858,6 @@ const JobMatchingFlowchart = () => {
                 </div>
               )}
 
-              {/* 条件確認が必要な案件 */}
               {possibleMatches.length > 0 && (
                 <div className="mt-3">
                   <div 
@@ -1872,6 +1897,7 @@ const JobMatchingFlowchart = () => {
                                 </h4>
                                 <div className="text-xs text-gray-600 mt-0.5">
                                   月収:{result.job.monthlySalary}万 | {result.job.shiftWork} | 通勤:{result.job.commuteTime}分
+                                  {result.job.vacancies && <span> | 欠員:{result.job.vacancies}名</span>}
                                 </div>
                               </div>
                               <div className="text-right">
@@ -1926,7 +1952,6 @@ const JobMatchingFlowchart = () => {
                 </div>
               )}
 
-              {/* 紹介不可の案件 */}
               {impossibleMatches.length > 0 && (
                 <div className="mt-3">
                   <div 
@@ -1982,7 +2007,6 @@ const JobMatchingFlowchart = () => {
               )}
             </div>
 
-            {/* マッチングフローツリー図 */}
             <div className="bg-white rounded-lg shadow-lg p-3">
               <div className="flex justify-between items-center mb-2">
                 <h2 className="text-lg font-bold text-indigo-600 flex items-center">
@@ -2111,7 +2135,6 @@ const JobMatchingFlowchart = () => {
               </div>
             </div>
 
-            {/* 条件比較ポップアップ（固定位置） */}
             {hoveredCell && (() => {
               const job = jobs.find(j => j.id === hoveredCell.jobId);
               if (!job) return null;
