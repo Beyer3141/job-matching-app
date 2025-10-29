@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, Edit2, Save, X, Download, CheckCircle, Heart, History, Phone, ChevronDown, ChevronRight, User, Target, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { Plus, Trash2, Edit2, Save, X, Download, CheckCircle, Heart, History, Phone, ChevronDown, ChevronRight, User, Target, ZoomIn, ZoomOut, Maximize2, Search, ArrowUpDown, AlertCircle, Printer } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 const JobMatchingFlowchart = () => {
   const commuteMethods = [
@@ -41,7 +42,7 @@ const JobMatchingFlowchart = () => {
     acceptedCommuteMethods: ['自家用車'],
     fee: '',
     feeType: '固定',
-    vacancies: '' // 欠員数を追加
+    vacancies: ''
   });
 
   const [editingJobId, setEditingJobId] = useState(null);
@@ -56,6 +57,10 @@ const JobMatchingFlowchart = () => {
   const [selectedJobForTracking, setSelectedJobForTracking] = useState(null);
   const [showMatrix, setShowMatrix] = useState(false);
   const [hoveredCell, setHoveredCell] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('score'); // score, fee, name
+  const [errors, setErrors] = useState({});
+  const [selectedNodeDetail, setSelectedNodeDetail] = useState(null);
   
   // ツリー図用
   const canvasRef = useRef(null);
@@ -70,6 +75,141 @@ const JobMatchingFlowchart = () => {
   const genderOptions = ['男性', '女性', '不問'];
   const commutePreferenceOptions = ['通勤希望', '入寮希望', 'どちらでもいい'];
   const commuteOptionOptions = ['通勤可', '入寮可', 'どちらも可'];
+
+  // LocalStorage保存・読み込み
+  useEffect(() => {
+    const savedJobs = localStorage.getItem('jobs');
+    const savedSeekerConditions = localStorage.getItem('seekerConditions');
+    const savedSearchHistory = localStorage.getItem('searchHistory');
+    
+    if (savedJobs) {
+      try {
+        setJobs(JSON.parse(savedJobs));
+      } catch (e) {
+        console.error('Failed to load jobs', e);
+      }
+    }
+    
+    if (savedSeekerConditions) {
+      try {
+        setSeekerConditions(JSON.parse(savedSeekerConditions));
+      } catch (e) {
+        console.error('Failed to load seeker conditions', e);
+      }
+    }
+    
+    if (savedSearchHistory) {
+      try {
+        setSearchHistory(JSON.parse(savedSearchHistory));
+      } catch (e) {
+        console.error('Failed to load search history', e);
+      }
+    }
+  }, []);
+
+  // 自動保存
+  useEffect(() => {
+    if (jobs.length > 0) {
+      localStorage.setItem('jobs', JSON.stringify(jobs));
+    }
+  }, [jobs]);
+
+  useEffect(() => {
+    localStorage.setItem('seekerConditions', JSON.stringify(seekerConditions));
+  }, [seekerConditions]);
+
+  useEffect(() => {
+    if (searchHistory.length > 0) {
+      localStorage.setItem('searchHistory', JSON.stringify(searchHistory));
+    }
+  }, [searchHistory]);
+
+  // バリデーション関数
+  const validateSeekerConditions = () => {
+    const newErrors = {};
+    
+    if (seekerConditions.age) {
+      const age = parseInt(seekerConditions.age);
+      if (age < 18 || age > 70) {
+        newErrors.age = '年齢は18〜70歳の範囲で入力してください';
+      }
+    }
+    
+    if (seekerConditions.monthlySalary) {
+      const salary = parseInt(seekerConditions.monthlySalary);
+      if (salary < 15 || salary > 100) {
+        newErrors.monthlySalary = '月収は15〜100万円の範囲で入力してください';
+      }
+    }
+    
+    if (seekerConditions.commuteTime) {
+      const time = parseInt(seekerConditions.commuteTime);
+      if (time < 0 || time > 180) {
+        newErrors.commuteTime = '通勤時間は0〜180分の範囲で入力してください';
+      }
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const validateJob = (job) => {
+    const newErrors = {};
+    
+    if (!job.name || job.name.trim() === '') {
+      newErrors.name = '案件名は必須です';
+    }
+    
+    if (!job.fee || job.fee.trim() === '') {
+      newErrors.fee = 'Feeは必須です';
+    } else {
+      const fee = parseInt(job.fee);
+      if (fee < 0 || fee > 100) {
+        newErrors.fee = 'Feeは0〜100万円の範囲で入力してください';
+      }
+    }
+    
+    if (job.monthlySalary) {
+      const salary = parseInt(job.monthlySalary);
+      if (salary < 15 || salary > 100) {
+        newErrors.monthlySalary = '月収は15〜100万円の範囲で入力してください';
+      }
+    }
+    
+    if (job.minAge) {
+      const age = parseInt(job.minAge);
+      if (age < 18 || age > 70) {
+        newErrors.minAge = '最低年齢は18〜70歳の範囲で入力してください';
+      }
+    }
+    
+    if (job.maxAge) {
+      const age = parseInt(job.maxAge);
+      if (age < 18 || age > 70) {
+        newErrors.maxAge = '最高年齢は18〜70歳の範囲で入力してください';
+      }
+    }
+    
+    if (job.minAge && job.maxAge && parseInt(job.minAge) > parseInt(job.maxAge)) {
+      newErrors.maxAge = '最高年齢は最低年齢より大きくしてください';
+    }
+    
+    if (job.commuteTime) {
+      const time = parseInt(job.commuteTime);
+      if (time < 0 || time > 180) {
+        newErrors.commuteTime = '通勤時間は0〜180分の範囲で入力してください';
+      }
+    }
+    
+    if (job.vacancies) {
+      const vacancies = parseInt(job.vacancies);
+      if (vacancies < 1 || vacancies > 100) {
+        newErrors.vacancies = '欠員数は1〜100名の範囲で入力してください';
+      }
+    }
+    
+    return newErrors;
+  };
 
   const handleZoomIn = () => {
     setZoom(prev => Math.min(prev + 0.1, 1.5));
@@ -87,6 +227,28 @@ const JobMatchingFlowchart = () => {
       const newZoom = Math.min(scaleX, scaleY, 1);
       setZoom(newZoom);
     }
+  };
+
+  const getPriorityColor = (priority) => {
+    const colors = {
+      5: 'bg-red-500',
+      4: 'bg-orange-500',
+      3: 'bg-yellow-500',
+      2: 'bg-blue-500',
+      1: 'bg-gray-400'
+    };
+    return colors[priority] || 'bg-gray-400';
+  };
+
+  const getPriorityLabel = (priority) => {
+    const labels = {
+      5: '最重要',
+      4: '重要',
+      3: '普通',
+      2: '低',
+      1: '最低'
+    };
+    return labels[priority] || '普通';
   };
 
   const calculateMatchScore = (job) => {
@@ -550,6 +712,7 @@ const JobMatchingFlowchart = () => {
           }}
           onMouseEnter={() => setHoveredNode(node.id)}
           onMouseLeave={() => setHoveredNode(null)}
+          onClick={() => node.jobs.length > 0 && setSelectedNodeDetail(node)}
         >
           <div className="p-3">
             <div className={`font-bold text-xs mb-1 ${iconColor} flex items-center justify-center`}>
@@ -769,6 +932,13 @@ const JobMatchingFlowchart = () => {
   }, [nodePositions, flowTree, selectedJobForTracking]);
 
   const addJob = () => {
+    const validationErrors = validateJob(newJob);
+    
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+    
     if (newJob.name) {
       setJobs([...jobs, { ...newJob, id: Date.now() }]);
       setNewJob({
@@ -785,32 +955,45 @@ const JobMatchingFlowchart = () => {
         feeType: '固定',
         vacancies: ''
       });
+      setErrors({});
     }
   };
 
   const startEditJob = (job) => {
     setEditingJobId(job.id);
     setEditingJob({ ...job });
+    setErrors({});
   };
 
   const saveEditJob = () => {
+    const validationErrors = validateJob(editingJob);
+    
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+    
     setJobs(jobs.map(job => job.id === editingJobId ? editingJob : job));
     setEditingJobId(null);
     setEditingJob(null);
+    setErrors({});
   };
 
   const cancelEditJob = () => {
     setEditingJobId(null);
     setEditingJob(null);
+    setErrors({});
   };
 
   const removeJob = (id) => {
-    setJobs(jobs.filter(job => job.id !== id));
-    setFavorites(prev => {
-      const newSet = new Set(prev);
-      newSet.delete(id);
-      return newSet;
-    });
+    if (window.confirm('この案件を削除してもよろしいですか？')) {
+      setJobs(jobs.filter(job => job.id !== id));
+      setFavorites(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(id);
+        return newSet;
+      });
+    }
   };
 
   const toggleFavorite = (id) => {
@@ -875,7 +1058,7 @@ const JobMatchingFlowchart = () => {
     }));
   };
 
-  const exportToExcel = () => {
+  const exportToCSV = () => {
     const headers = ['案件名', '月収', '勤務形態', '性別', '年齢', '通勤時間', '通勤方法', '受入通勤手段', 'Fee', '欠員数', 'マッチングスコア', '状態'];
     const analysisResults = jobs.map(analyzeJobDetail);
     
@@ -900,6 +1083,35 @@ const JobMatchingFlowchart = () => {
     link.href = URL.createObjectURL(blob);
     link.download = 'matching_results.csv';
     link.click();
+  };
+
+  const exportToExcel = () => {
+    const analysisResults = jobs.map(analyzeJobDetail);
+    
+    const data = analysisResults.map(result => ({
+      '案件名': result.job.name,
+      '月収': result.job.monthlySalary,
+      '勤務形態': result.job.shiftWork,
+      '性別': result.job.gender,
+      '最低年齢': result.job.minAge || '-',
+      '最高年齢': result.job.maxAge || '-',
+      '通勤時間': result.job.commuteTime,
+      '通勤方法': result.job.commuteOption,
+      '受入通勤手段': result.job.acceptedCommuteMethods?.join('、') || '',
+      'Fee': result.job.fee,
+      '欠員数': result.job.vacancies || '-',
+      'マッチングスコア': result.score,
+      '状態': result.isImmediateMatch ? 'すぐ紹介可能' : result.isPossibleMatch ? '条件確認必要' : '紹介不可'
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'マッチング結果');
+    XLSX.writeFile(wb, 'matching_results.xlsx');
+  };
+
+  const handlePrint = () => {
+    window.print();
   };
 
   const getConditionCompareInfo = (job, conditionId) => {
@@ -961,32 +1173,48 @@ const JobMatchingFlowchart = () => {
       })[0]
     : null;
 
-  const sortedJobs = [...analysisResults].sort((a, b) => {
-    if (a.isImmediateMatch && !b.isImmediateMatch) return -1;
-    if (!a.isImmediateMatch && b.isImmediateMatch) return 1;
-    if (a.isPossibleMatch && !b.isPossibleMatch) return -1;
-    if (!a.isPossibleMatch && b.isPossibleMatch) return 1;
-    
-    const feeA = parseInt(a.job.fee) || 0;
-    const feeB = parseInt(b.job.fee) || 0;
-    if (feeB !== feeA) return feeB - feeA;
-    
-    return b.score - a.score;
+  // 検索・ソート機能
+  const filteredJobs = analysisResults.filter(result => {
+    if (!searchQuery) return true;
+    return result.job.name.toLowerCase().includes(searchQuery.toLowerCase());
+  });
+
+  const sortedJobs = [...filteredJobs].sort((a, b) => {
+    if (sortBy === 'score') {
+      if (a.isImmediateMatch && !b.isImmediateMatch) return -1;
+      if (!a.isImmediateMatch && b.isImmediateMatch) return 1;
+      if (a.isPossibleMatch && !b.isPossibleMatch) return -1;
+      if (!a.isPossibleMatch && b.isPossibleMatch) return 1;
+      return b.score - a.score;
+    } else if (sortBy === 'fee') {
+      const feeA = parseInt(a.job.fee) || 0;
+      const feeB = parseInt(b.job.fee) || 0;
+      return feeB - feeA;
+    } else if (sortBy === 'name') {
+      return a.job.name.localeCompare(b.job.name);
+    } else if (sortBy === 'vacancies') {
+      const vacA = parseInt(a.job.vacancies) || 0;
+      const vacB = parseInt(b.job.vacancies) || 0;
+      return vacB - vacA;
+    }
+    return 0;
   });
 
   useEffect(() => {
     if (showAnalysis && jobs.length > 0) {
-      saveSearchHistory();
-      const tree = buildFlowTree();
-      setFlowTree(tree);
-      const positions = calculateNodePositions(tree);
-      const normalizedPositions = normalizePositions(positions);
-      setNodePositions(normalizedPositions);
+      if (validateSeekerConditions()) {
+        saveSearchHistory();
+        const tree = buildFlowTree();
+        setFlowTree(tree);
+        const positions = calculateNodePositions(tree);
+        const normalizedPositions = normalizePositions(positions);
+        setNodePositions(normalizedPositions);
+      }
     }
   }, [showAnalysis, jobs, seekerConditions]);
 
   const SeekerInfoCard = () => (
-    <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg shadow-lg p-3 text-white">
+    <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg shadow-lg p-3 text-white print:break-inside-avoid">
       <div className="mb-3">
         <h3 className="font-bold text-sm mb-2 flex items-center">
           <User className="mr-1" size={16} />
@@ -1055,20 +1283,35 @@ const JobMatchingFlowchart = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 px-2 py-4 sm:px-4 md:px-6 lg:px-8">
+      <style>{`
+        @media print {
+          body {
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
+          }
+          .no-print {
+            display: none !important;
+          }
+          .print-break {
+            page-break-inside: avoid;
+          }
+        }
+      `}</style>
+      
+      <div className="max-w-7xl mx-auto w-full">
         <div className="text-center mb-4">
-          <h1 className="text-4xl font-bold text-indigo-700 mb-1">
+          <h1 className="text-3xl sm:text-4xl font-bold text-indigo-700 mb-1">
             🎯 求人マッチングシステム Pro
           </h1>
-          <p className="text-sm text-gray-600">電話対応に特化した高機能マッチング分析</p>
+          <p className="text-xs sm:text-sm text-gray-600">電話対応に特化した高機能マッチング分析</p>
         </div>
 
         {!showAnalysis ? (
           <div className="space-y-4">
-            <div className="bg-white rounded-lg shadow-lg p-4">
-              <h2 className="text-xl font-bold text-indigo-600 mb-3 flex items-center">
-                <span className="bg-indigo-600 text-white rounded-full w-7 h-7 flex items-center justify-center mr-2 text-sm">1</span>
+            <div className="bg-white rounded-lg shadow-lg p-3 sm:p-4">
+              <h2 className="text-lg sm:text-xl font-bold text-indigo-600 mb-3 flex items-center">
+                <span className="bg-indigo-600 text-white rounded-full w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center mr-2 text-xs sm:text-sm">1</span>
                 求職者の条件
               </h2>
               
@@ -1078,10 +1321,23 @@ const JobMatchingFlowchart = () => {
                   <input
                     type="number"
                     value={seekerConditions.age}
-                    onChange={(e) => setSeekerConditions({...seekerConditions, age: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
+                    onChange={(e) => {
+                      setSeekerConditions({...seekerConditions, age: e.target.value});
+                      if (errors.age) setErrors({...errors, age: undefined});
+                    }}
+                    min="18"
+                    max="70"
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900 ${
+                      errors.age ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     placeholder="例: 25"
                   />
+                  {errors.age && (
+                    <div className="flex items-center mt-1 text-xs text-red-600">
+                      <AlertCircle size={12} className="mr-1" />
+                      {errors.age}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1101,10 +1357,23 @@ const JobMatchingFlowchart = () => {
                   <input
                     type="number"
                     value={seekerConditions.monthlySalary}
-                    onChange={(e) => setSeekerConditions({...seekerConditions, monthlySalary: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
+                    onChange={(e) => {
+                      setSeekerConditions({...seekerConditions, monthlySalary: e.target.value});
+                      if (errors.monthlySalary) setErrors({...errors, monthlySalary: undefined});
+                    }}
+                    min="15"
+                    max="100"
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900 ${
+                      errors.monthlySalary ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     placeholder="例: 30"
                   />
+                  {errors.monthlySalary && (
+                    <div className="flex items-center mt-1 text-xs text-red-600">
+                      <AlertCircle size={12} className="mr-1" />
+                      {errors.monthlySalary}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1125,10 +1394,23 @@ const JobMatchingFlowchart = () => {
                   <input
                     type="number"
                     value={seekerConditions.commuteTime}
-                    onChange={(e) => setSeekerConditions({...seekerConditions, commuteTime: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
+                    onChange={(e) => {
+                      setSeekerConditions({...seekerConditions, commuteTime: e.target.value});
+                      if (errors.commuteTime) setErrors({...errors, commuteTime: undefined});
+                    }}
+                    min="0"
+                    max="180"
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900 ${
+                      errors.commuteTime ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     placeholder="例: 30"
                   />
+                  {errors.commuteTime && (
+                    <div className="flex items-center mt-1 text-xs text-red-600">
+                      <AlertCircle size={12} className="mr-1" />
+                      {errors.commuteTime}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1160,7 +1442,7 @@ const JobMatchingFlowchart = () => {
 
               <div className="mt-3 p-3 bg-indigo-50 rounded-lg">
                 <h3 className="font-bold text-indigo-800 mb-2 text-sm">🎯 条件の優先度設定</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                   {Object.entries({
                     salary: '月収',
                     shiftWork: '勤務形態',
@@ -1170,45 +1452,64 @@ const JobMatchingFlowchart = () => {
                   }).map(([key, label]) => (
                     <div key={key}>
                       <label className="block text-xs font-semibold text-gray-700 mb-1">{label}</label>
-                      <select
-                        value={seekerConditions.priorities[key]}
-                        onChange={(e) => setSeekerConditions({
-                          ...seekerConditions,
-                          priorities: {
-                            ...seekerConditions.priorities,
-                            [key]: parseInt(e.target.value)
-                          }
-                        })}
-                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-white text-gray-900"
-                      >
-                        <option value="5">最重要 ⭐⭐⭐⭐⭐</option>
-                        <option value="4">重要 ⭐⭐⭐⭐</option>
-                        <option value="3">普通 ⭐⭐⭐</option>
-                        <option value="2">低 ⭐⭐</option>
-                        <option value="1">最低 ⭐</option>
-                      </select>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="range"
+                          min="1"
+                          max="5"
+                          value={seekerConditions.priorities[key]}
+                          onChange={(e) => setSeekerConditions({
+                            ...seekerConditions,
+                            priorities: {
+                              ...seekerConditions.priorities,
+                              [key]: parseInt(e.target.value)
+                            }
+                          })}
+                          className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                          style={{
+                            background: `linear-gradient(to right, ${getPriorityColor(seekerConditions.priorities[key]).replace('bg-', '')} 0%, ${getPriorityColor(seekerConditions.priorities[key]).replace('bg-', '')} ${(seekerConditions.priorities[key] - 1) * 25}%, #e5e7eb ${(seekerConditions.priorities[key] - 1) * 25}%, #e5e7eb 100%)`
+                          }}
+                        />
+                        <span className={`text-xs font-bold px-2 py-1 rounded ${getPriorityColor(seekerConditions.priorities[key])} text-white`}>
+                          {seekerConditions.priorities[key]}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-600 mt-1">{getPriorityLabel(seekerConditions.priorities[key])}</div>
                     </div>
                   ))}
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-lg p-4">
-              <h2 className="text-xl font-bold text-indigo-600 mb-3 flex items-center">
-                <span className="bg-indigo-600 text-white rounded-full w-7 h-7 flex items-center justify-center mr-2 text-sm">2</span>
+            <div className="bg-white rounded-lg shadow-lg p-3 sm:p-4">
+              <h2 className="text-lg sm:text-xl font-bold text-indigo-600 mb-3 flex items-center">
+                <span className="bg-indigo-600 text-white rounded-full w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center mr-2 text-xs sm:text-sm">2</span>
                 案件情報
               </h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">案件名</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    案件名 <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
                     value={newJob.name}
-                    onChange={(e) => setNewJob({...newJob, name: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
+                    onChange={(e) => {
+                      setNewJob({...newJob, name: e.target.value});
+                      if (errors.name) setErrors({...errors, name: undefined});
+                    }}
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900 ${
+                      errors.name ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     placeholder="例: トヨタ自動車"
                   />
+                  {errors.name && (
+                    <div className="flex items-center mt-1 text-xs text-red-600">
+                      <AlertCircle size={12} className="mr-1" />
+                      {errors.name}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1216,10 +1517,23 @@ const JobMatchingFlowchart = () => {
                   <input
                     type="number"
                     value={newJob.monthlySalary}
-                    onChange={(e) => setNewJob({...newJob, monthlySalary: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
+                    onChange={(e) => {
+                      setNewJob({...newJob, monthlySalary: e.target.value});
+                      if (errors.monthlySalary) setErrors({...errors, monthlySalary: undefined});
+                    }}
+                    min="15"
+                    max="100"
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900 ${
+                      errors.monthlySalary ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     placeholder="例: 28"
                   />
+                  {errors.monthlySalary && (
+                    <div className="flex items-center mt-1 text-xs text-red-600">
+                      <AlertCircle size={12} className="mr-1" />
+                      {errors.monthlySalary}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1253,10 +1567,23 @@ const JobMatchingFlowchart = () => {
                   <input
                     type="number"
                     value={newJob.minAge}
-                    onChange={(e) => setNewJob({...newJob, minAge: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
+                    onChange={(e) => {
+                      setNewJob({...newJob, minAge: e.target.value});
+                      if (errors.minAge) setErrors({...errors, minAge: undefined});
+                    }}
+                    min="18"
+                    max="70"
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900 ${
+                      errors.minAge ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     placeholder="例: 18"
                   />
+                  {errors.minAge && (
+                    <div className="flex items-center mt-1 text-xs text-red-600">
+                      <AlertCircle size={12} className="mr-1" />
+                      {errors.minAge}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1264,10 +1591,23 @@ const JobMatchingFlowchart = () => {
                   <input
                     type="number"
                     value={newJob.maxAge}
-                    onChange={(e) => setNewJob({...newJob, maxAge: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
+                    onChange={(e) => {
+                      setNewJob({...newJob, maxAge: e.target.value});
+                      if (errors.maxAge) setErrors({...errors, maxAge: undefined});
+                    }}
+                    min="18"
+                    max="70"
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900 ${
+                      errors.maxAge ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     placeholder="例: 50"
                   />
+                  {errors.maxAge && (
+                    <div className="flex items-center mt-1 text-xs text-red-600">
+                      <AlertCircle size={12} className="mr-1" />
+                      {errors.maxAge}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1275,10 +1615,23 @@ const JobMatchingFlowchart = () => {
                   <input
                     type="number"
                     value={newJob.commuteTime}
-                    onChange={(e) => setNewJob({...newJob, commuteTime: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
+                    onChange={(e) => {
+                      setNewJob({...newJob, commuteTime: e.target.value});
+                      if (errors.commuteTime) setErrors({...errors, commuteTime: undefined});
+                    }}
+                    min="0"
+                    max="180"
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900 ${
+                      errors.commuteTime ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     placeholder="例: 40"
                   />
+                  {errors.commuteTime && (
+                    <div className="flex items-center mt-1 text-xs text-red-600">
+                      <AlertCircle size={12} className="mr-1" />
+                      {errors.commuteTime}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1295,14 +1648,29 @@ const JobMatchingFlowchart = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Fee（万円）</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Fee（万円） <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="number"
                     value={newJob.fee}
-                    onChange={(e) => setNewJob({...newJob, fee: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
+                    onChange={(e) => {
+                      setNewJob({...newJob, fee: e.target.value});
+                      if (errors.fee) setErrors({...errors, fee: undefined});
+                    }}
+                    min="0"
+                    max="100"
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900 ${
+                      errors.fee ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     placeholder="例: 25"
                   />
+                  {errors.fee && (
+                    <div className="flex items-center mt-1 text-xs text-red-600">
+                      <AlertCircle size={12} className="mr-1" />
+                      {errors.fee}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1310,16 +1678,29 @@ const JobMatchingFlowchart = () => {
                   <input
                     type="number"
                     value={newJob.vacancies}
-                    onChange={(e) => setNewJob({...newJob, vacancies: e.target.value})}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
+                    onChange={(e) => {
+                      setNewJob({...newJob, vacancies: e.target.value});
+                      if (errors.vacancies) setErrors({...errors, vacancies: undefined});
+                    }}
+                    min="1"
+                    max="100"
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900 ${
+                      errors.vacancies ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     placeholder="例: 5"
                   />
+                  {errors.vacancies && (
+                    <div className="flex items-center mt-1 text-xs text-red-600">
+                      <AlertCircle size={12} className="mr-1" />
+                      {errors.vacancies}
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div className="mb-3">
                 <label className="block text-xs font-semibold text-gray-700 mb-1">受入可能な通勤手段（複数選択可）</label>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
                   {commuteMethods.map(method => (
                     <label key={method.value} className="flex items-center space-x-1 text-xs">
                       <input
@@ -1356,20 +1737,42 @@ const JobMatchingFlowchart = () => {
             </div>
 
             {jobs.length > 0 && (
-              <div className="bg-white rounded-lg shadow-lg p-4">
-                <div className="flex justify-between items-center mb-3">
-                  <h2 className="text-xl font-bold text-indigo-600 flex items-center">
-                    <span className="bg-indigo-600 text-white rounded-full w-7 h-7 flex items-center justify-center mr-2 text-sm">3</span>
+              <div className="bg-white rounded-lg shadow-lg p-3 sm:p-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-3">
+                  <h2 className="text-lg sm:text-xl font-bold text-indigo-600 flex items-center">
+                    <span className="bg-indigo-600 text-white rounded-full w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center mr-2 text-xs sm:text-sm">3</span>
                     登録済み案件 ({jobs.length}件)
                   </h2>
-                  <button
-                    onClick={() => setCompareMode(!compareMode)}
-                    className={`px-3 py-1 rounded-lg text-sm font-semibold transition ${
-                      compareMode ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'
-                    }`}
-                  >
-                    {compareMode ? '比較モード終了' : '比較モード'}
-                  </button>
+                  <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                    <div className="relative flex-1 sm:flex-initial">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="案件名で検索..."
+                        className="pl-9 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 w-full sm:w-48"
+                      />
+                    </div>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value)}
+                      className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white"
+                    >
+                      <option value="score">スコア順</option>
+                      <option value="fee">Fee順</option>
+                      <option value="name">名前順</option>
+                      <option value="vacancies">欠員数順</option>
+                    </select>
+                    <button
+                      onClick={() => setCompareMode(!compareMode)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition ${
+                        compareMode ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'
+                      }`}
+                    >
+                      {compareMode ? '比較終了' : '比較モード'}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -1386,7 +1789,10 @@ const JobMatchingFlowchart = () => {
                               <input
                                 type="text"
                                 value={editingJob.name}
-                                onChange={(e) => setEditingJob({...editingJob, name: e.target.value})}
+                                onChange={(e) => {
+                                  setEditingJob({...editingJob, name: e.target.value});
+                                  if (errors.name) setErrors({...errors, name: undefined});
+                                }}
                                 className="px-2 py-1 text-xs border rounded bg-white text-gray-900"
                                 placeholder="案件名"
                               />
@@ -1448,7 +1854,10 @@ const JobMatchingFlowchart = () => {
                               <input
                                 type="number"
                                 value={editingJob.fee}
-                                onChange={(e) => setEditingJob({...editingJob, fee: e.target.value})}
+                                onChange={(e) => {
+                                  setEditingJob({...editingJob, fee: e.target.value});
+                                  if (errors.fee) setErrors({...errors, fee: undefined});
+                                }}
                                 className="px-2 py-1 text-xs border rounded bg-white text-gray-900"
                                 placeholder="Fee"
                               />
@@ -1460,6 +1869,16 @@ const JobMatchingFlowchart = () => {
                                 placeholder="欠員数"
                               />
                             </div>
+                            {Object.keys(errors).length > 0 && (
+                              <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-600">
+                                {Object.values(errors).map((error, i) => (
+                                  <div key={i} className="flex items-center">
+                                    <AlertCircle size={12} className="mr-1" />
+                                    {error}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                             <div className="flex items-center space-x-1">
                               <button
                                 onClick={saveEditJob}
@@ -1483,8 +1902,8 @@ const JobMatchingFlowchart = () => {
                           }`}>
                             <div className="flex items-center justify-between">
                               <div className="flex-1">
-                                <div className="flex items-center space-x-2 mb-1">
-                                  <h3 className="font-bold text-base">{job.name}</h3>
+                                <div className="flex flex-wrap items-center gap-2 mb-1">
+                                  <h3 className="font-bold text-sm sm:text-base">{job.name}</h3>
                                   <span className={`px-2 py-0.5 rounded-full text-xs font-bold text-white ${getScoreColor(score)}`}>
                                     {score}点
                                   </span>
@@ -1549,8 +1968,8 @@ const JobMatchingFlowchart = () => {
             )}
 
             {compareMode && selectedForCompare.size > 0 && (
-              <div className="bg-white rounded-lg shadow-lg p-4">
-                <h2 className="text-lg font-bold text-purple-600 mb-3">📊 案件比較 ({selectedForCompare.size}件)</h2>
+              <div className="bg-white rounded-lg shadow-lg p-3 sm:p-4">
+                <h2 className="text-base sm:text-lg font-bold text-purple-600 mb-3">📊 案件比較 ({selectedForCompare.size}件)</h2>
                 
                 <div className="mb-3">
                   <h3 className="text-sm font-bold text-gray-700 mb-2">求職者の条件:</h3>
@@ -1581,7 +2000,7 @@ const JobMatchingFlowchart = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   {Array.from(selectedForCompare).map(jobId => {
                     const job = jobs.find(j => j.id === jobId);
                     if (!job) return null;
@@ -1589,7 +2008,7 @@ const JobMatchingFlowchart = () => {
                     
                     return (
                       <div key={job.id} className="border-2 border-purple-300 rounded-lg p-3 bg-purple-50">
-                        <h3 className="font-bold text-base mb-2">{job.name}</h3>
+                        <h3 className="font-bold text-sm sm:text-base mb-2">{job.name}</h3>
                         <div className="space-y-1 text-xs">
                           <div className="flex justify-between">
                             <span>スコア:</span>
@@ -1626,9 +2045,9 @@ const JobMatchingFlowchart = () => {
             )}
 
             {searchHistory.length > 0 && (
-              <div className="bg-white rounded-lg shadow-lg p-4">
-                <h2 className="text-lg font-bold text-indigo-600 mb-2 flex items-center">
-                  <History className="mr-2" size={18} />
+              <div className="bg-white rounded-lg shadow-lg p-3 sm:p-4">
+                <h2 className="text-base sm:text-lg font-bold text-indigo-600 mb-2 flex items-center">
+                  <History className="mr-2" size={16} sm:size={18} />
                   検索履歴
                 </h2>
                 <div className="space-y-1">
@@ -1656,8 +2075,12 @@ const JobMatchingFlowchart = () => {
             {jobs.length > 0 && (
               <div className="text-center">
                 <button
-                  onClick={() => setShowAnalysis(true)}
-                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold py-3 px-8 rounded-lg text-lg shadow-lg transition transform hover:scale-105"
+                  onClick={() => {
+                    if (validateSeekerConditions()) {
+                      setShowAnalysis(true);
+                    }
+                  }}
+                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold py-3 px-6 sm:px-8 rounded-lg text-base sm:text-lg shadow-lg transition transform hover:scale-105"
                 >
                   📞 マッチング分析を表示
                 </button>
@@ -1666,7 +2089,7 @@ const JobMatchingFlowchart = () => {
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 no-print">
               <button
                 onClick={() => {
                   setShowAnalysis(false);
@@ -1677,26 +2100,44 @@ const JobMatchingFlowchart = () => {
                 ← 入力画面に戻る
               </button>
               
-              <button
-                onClick={exportToExcel}
-                className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg flex items-center space-x-2 text-sm"
-              >
-                <Download size={16} />
-                <span>CSV出力</span>
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={handlePrint}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center space-x-2 text-sm"
+                >
+                  <Printer size={16} />
+                  <span>印刷</span>
+                </button>
+                <button
+                  onClick={exportToCSV}
+                  className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg flex items-center space-x-2 text-sm"
+                >
+                  <Download size={16} />
+                  <span>CSV出力</span>
+                </button>
+                <button
+                  onClick={exportToExcel}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg flex items-center space-x-2 text-sm"
+                >
+                  <Download size={16} />
+                  <span>Excel出力</span>
+                </button>
+              </div>
             </div>
 
             <SeekerInfoCard />
 
-            <div className="bg-white rounded-lg shadow-lg p-3">
+            <div className="bg-white rounded-lg shadow-lg p-3 print-break">
               <div 
                 className="flex justify-between items-center cursor-pointer hover:bg-gray-50 p-2 rounded"
                 onClick={() => setShowMatrix(!showMatrix)}
               >
-                <h2 className="text-lg font-bold text-indigo-600 flex items-center">
+                <h2 className="text-base sm:text-lg font-bold text-indigo-600 flex items-center">
                   📋 条件マトリクス一覧
                 </h2>
-                {showMatrix ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                <div className="no-print">
+                  {showMatrix ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                </div>
               </div>
               {showMatrix && (
                 <div className="overflow-x-auto mt-2 relative">
@@ -1777,7 +2218,7 @@ const JobMatchingFlowchart = () => {
                 </div>
               )}
               {selectedJobForTracking && (
-                <div className="mt-2 p-2 bg-purple-50 border border-purple-300 rounded text-xs">
+                <div className="mt-2 p-2 bg-purple-50 border border-purple-300 rounded text-xs no-print">
                   <div className="flex justify-between items-center">
                     <span className="font-bold text-purple-900">
                       🎯 {jobs.find(j => j.id === selectedJobForTracking)?.name} を追跡中
@@ -1793,9 +2234,9 @@ const JobMatchingFlowchart = () => {
               )}
             </div>
 
-            <div className="bg-white rounded-lg shadow-lg p-3">
-              <h2 className="text-lg font-bold text-green-600 mb-2 flex items-center">
-                <Phone className="mr-2" size={18} />
+            <div className="bg-white rounded-lg shadow-lg p-3 print-break">
+              <h2 className="text-base sm:text-lg font-bold text-green-600 mb-2 flex items-center">
+                <Phone className="mr-2" size={16} sm:size={18} />
                 📞 電話確認シート
               </h2>
 
@@ -1809,7 +2250,9 @@ const JobMatchingFlowchart = () => {
                       <h3 className="text-sm font-bold text-green-800 flex items-center">
                         ✅ すぐ紹介可能 ({immediateMatches.length}件)
                       </h3>
-                      {expandedConditions.has('immediate') ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      <div className="no-print">
+                        {expandedConditions.has('immediate') ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      </div>
                     </div>
                   </div>
                   {expandedConditions.has('immediate') && (
@@ -1868,7 +2311,9 @@ const JobMatchingFlowchart = () => {
                       <h3 className="text-sm font-bold text-yellow-800 flex items-center">
                         ⚠️ 条件確認が必要 ({possibleMatches.length}件)
                       </h3>
-                      {expandedConditions.has('possible') ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      <div className="no-print">
+                        {expandedConditions.has('possible') ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      </div>
                     </div>
                   </div>
                   {expandedConditions.has('possible') && (
@@ -1962,7 +2407,9 @@ const JobMatchingFlowchart = () => {
                       <h3 className="text-sm font-bold text-red-800 flex items-center">
                         ❌ 紹介不可 ({impossibleMatches.length}件)
                       </h3>
-                      {expandedConditions.has('impossible') ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      <div className="no-print">
+                        {expandedConditions.has('impossible') ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      </div>
                     </div>
                   </div>
                   {expandedConditions.has('impossible') && (
@@ -2007,10 +2454,10 @@ const JobMatchingFlowchart = () => {
               )}
             </div>
 
-            <div className="bg-white rounded-lg shadow-lg p-3">
+            <div className="bg-white rounded-lg shadow-lg p-3 hidden lg:block no-print">
               <div className="flex justify-between items-center mb-2">
-                <h2 className="text-lg font-bold text-indigo-600 flex items-center">
-                  <Target className="mr-2" size={18} />
+                <h2 className="text-base sm:text-lg font-bold text-indigo-600 flex items-center">
+                  <Target className="mr-2" size={16} sm:size={18} />
                   📊 フローツリー図
                 </h2>
                 <div className="flex items-center space-x-1 bg-white rounded-lg shadow p-1">
@@ -2091,7 +2538,7 @@ const JobMatchingFlowchart = () => {
                     <div className="space-y-0.5 text-gray-700">
                       <p>• ズームで拡大縮小</p>
                       <p>• ノードホバーで詳細</p>
-                      <p>• 案件クリックで追跡</p>
+                      <p>• ノードクリックで案件表示</p>
                     </div>
                   </div>
                 </div>
@@ -2134,6 +2581,49 @@ const JobMatchingFlowchart = () => {
                 </div>
               </div>
             </div>
+
+            {selectedNodeDetail && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedNodeDetail(null)}>
+                <div className="bg-white rounded-lg shadow-2xl p-4 max-w-2xl w-full max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-lg font-bold text-indigo-900">
+                      {selectedNodeDetail.condition || '案件詳細'}
+                    </h3>
+                    <button
+                      onClick={() => setSelectedNodeDetail(null)}
+                      className="text-gray-500 hover:text-gray-700"
+                    >
+                      <X size={24} />
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {selectedNodeDetail.jobs.map(job => {
+                      const analysis = analyzeJobDetail(job);
+                      return (
+                        <div key={job.id} className="border rounded-lg p-3 bg-gray-50">
+                          <div className="flex justify-between items-start mb-2">
+                            <h4 className="font-bold text-base">{job.name}</h4>
+                            <span className={`px-2 py-1 rounded-full text-xs font-bold text-white ${getScoreColor(analysis.score)}`}>
+                              {analysis.score}点
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div><span className="font-semibold">月収:</span> {job.monthlySalary}万円</div>
+                            <div><span className="font-semibold">Fee:</span> {job.fee}万円</div>
+                            {job.vacancies && <div><span className="font-semibold">欠員数:</span> {job.vacancies}名</div>}
+                            <div><span className="font-semibold">勤務形態:</span> {job.shiftWork}</div>
+                            <div><span className="font-semibold">性別:</span> {job.gender}</div>
+                            <div><span className="font-semibold">年齢:</span> {job.minAge || '-'}〜{job.maxAge || '-'}歳</div>
+                            <div><span className="font-semibold">通勤時間:</span> {job.commuteTime}分</div>
+                            <div><span className="font-semibold">通勤方法:</span> {job.commuteOption}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {hoveredCell && (() => {
               const job = jobs.find(j => j.id === hoveredCell.jobId);
