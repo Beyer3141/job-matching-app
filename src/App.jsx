@@ -1028,8 +1028,9 @@ const JobMatchingFlowchart = () => {
   };
 
   // フローツリー構築
-  const buildFlowTree = () => {
-    const rootNode = { id: 'root', level: 0, type: 'start', jobs: [...jobs], children: [] };
+  const buildFlowTree = (jobsToAnalyze) => {
+    const targetJobs = jobsToAnalyze || jobs;
+    const rootNode = { id: 'root', level: 0, type: 'start', jobs: [...targetJobs], children: [] };
     const conditions = [
       { id: 'age', name: '年齢', canRelax: false },
       { id: 'gender', name: '性別', canRelax: false },
@@ -1158,7 +1159,8 @@ const JobMatchingFlowchart = () => {
 
       setJobs(selectedJobs);
       
-      const tree = buildFlowTree();
+      // ★★★ buildFlowTreeに直接selectedJobsを渡す ★★★
+      const tree = buildFlowTree(selectedJobs);
       setFlowTree(tree);
       const positions = calculateNodePositions(tree);
       const normalizedPositions = normalizePositions(positions);
