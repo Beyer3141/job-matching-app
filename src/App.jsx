@@ -9,13 +9,13 @@ const SPREADSHEET_ID = '1yKbGLc9wbXamYeMhjennjDPnW46Cyz7QcQXKF773G8g';
 
 // 交通手段別の30分あたりの移動距離（km）
 const COMMUTE_DISTANCE_PER_30MIN = {
-  '車': 12,
-  '自家用車': 12,
-  'バイク': 9,
+  '車': 15,
+  '自家用車': 15,
+  'バイク': 10,
   '自転車': 5,
   '徒歩': 2,
-  'バス': 8,
-  '電車': 13
+  'バス': 10,
+  '電車': 20
 };
 
 // 派遣会社ランク
@@ -719,10 +719,10 @@ const JobMatchingFlowchart = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedJobIds, setSelectedJobIds] = useState(new Set());
   
-  // タブとソート
+  // タブとソート ★デフォルトを距離順に変更
   const [activeTab, setActiveTab] = useState('all'); // 'all', 'day-shift', 'other-shift', 'fee'
-  const [sortBy, setSortBy] = useState('score'); // 'score', 'fee', 'distance', 'vacancy', 'salary'
-  const [sortOrder, setSortOrder] = useState('desc'); // 'asc', 'desc'
+  const [sortBy, setSortBy] = useState('distance'); // 'score', 'fee', 'distance', 'vacancy', 'salary'
+  const [sortOrder, setSortOrder] = useState('asc'); // 'asc', 'desc' - 距離は昇順がデフォルト
 
   // ツリー図用
   const canvasRef = useRef(null);
@@ -1110,10 +1110,12 @@ const JobMatchingFlowchart = () => {
     picked.sort((a, b) => b.pickupScore - a.pickupScore);
 
     setPickedJobs(picked);
-    setSelectedJobIds(new Set(picked.map(job => job.id)));
+    // ★チェックは全解除がデフォルト（自動選択しない）
+    setSelectedJobIds(new Set());
     setSearchQuery('');
     setActiveTab('all');
-    setSortBy('score');
+    setSortBy('distance'); // ★デフォルトを距離順に
+    setSortOrder('asc'); // ★距離は昇順
     
     setMainStep(2);
     setIsLoading(false);
@@ -1625,6 +1627,81 @@ const JobMatchingFlowchart = () => {
         {/* Step 2: 自動ピックアップ結果 */}
         {mainStep === 2 && (
           <div className="space-y-4">
+            {/* ★オプション条件の表示・編集エリア */}
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Filter size={18} className="text-indigo-600" />
+                <h3 className="font-bold text-slate-700">絞り込み条件（編集可能）</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                {/* 希望月収 */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">💰 希望月収（任意）</label>
+                  <input
+                    type="number"
+                    value={seekerConditions.monthlySalary}
+                    onChange={(e) => setSeekerConditions({ ...seekerConditions, monthlySalary: e.target.value })}
+                    placeholder="例: 25"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <span className="text-xs text-slate-500">万円/月</span>
+                </div>
+
+                {/* 勤務形態 */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">🌓 勤務形態（任意）</label>
+                  <select
+                    value={seekerConditions.shiftWork}
+                    onChange={(e) => setSeekerConditions({ ...seekerConditions, shiftWork: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">未設定</option>
+                    {shiftWorkOptions.map(option => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 通勤手段 */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">🚗 通勤手段（任意）</label>
+                  <select
+                    value={seekerConditions.commuteMethod}
+                    onChange={(e) => setSeekerConditions({ ...seekerConditions, commuteMethod: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                  >
+                    {commuteMethods.map(method => (
+                      <option key={method.value} value={method.value}>{method.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 入寮希望 */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">🏠 入寮希望（任意）</label>
+                  <select
+                    value={seekerConditions.commutePreference}
+                    onChange={(e) => setSeekerConditions({ ...seekerConditions, commutePreference: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                  >
+                    {commutePreferenceOptions.map(option => (
+                      <option key={option} value={option}>{option || '未設定'}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
+              {/* 再ピックアップボタン */}
+              <div className="mt-3 flex justify-end">
+                <button
+                  onClick={runAutoPickup}
+                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all text-sm font-medium"
+                >
+                  <RefreshCw size={16} />条件を反映して再検索
+                </button>
+              </div>
+            </div>
+
             {/* サマリー */}
             <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl shadow-lg p-5 text-white">
               <div className="flex items-center justify-between mb-4">
