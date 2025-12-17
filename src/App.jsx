@@ -1,5 +1,124 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Edit2, Save, X, Download, CheckCircle, Heart, History, Phone, ChevronDown, ChevronRight, User, Target, ZoomIn, ZoomOut, Maximize2, AlertCircle, Check, Loader, XCircle, MinusCircle, MapPin, Building, RefreshCw, Search, Filter, AlertTriangle, Info, Clock, DollarSign, Users, Briefcase, Database, Navigation, Eye, ExternalLink, CheckSquare, Square, ArrowUpDown, TrendingUp, TrendingDown } from 'lucide-react';
+import { Plus, Trash2, Edit2, Save, X, Download, CheckCircle, Heart, History, Phone, ChevronDown, ChevronRight, User, Target, ZoomIn, ZoomOut, Maximize2, AlertCircle, Check, Loader, XCircle, MinusCircle, MapPin, Building, RefreshCw, Search, Filter, AlertTriangle, Info, Clock, DollarSign, Users, Briefcase, Database, Navigation, Eye, ExternalLink, CheckSquare, Square, ArrowUpDown, TrendingUp, TrendingDown, Settings, BarChart3, Sparkles, Award, Zap, TrendingUp as TrendUp } from 'lucide-react';
+
+// =====================================
+// Material Design 3 デザインシステム
+// =====================================
+
+const MD3 = {
+  // Color Tokens (Material Design 3 - Light Theme)
+  color: {
+    primary: {
+      main: '#4F46E5',  // Indigo 600
+      onMain: '#FFFFFF',
+      container: '#E0DFFE',
+      onContainer: '#1E0D5D',
+    },
+    secondary: {
+      main: '#7C3AED',  // Violet 600
+      onMain: '#FFFFFF',
+      container: '#EDE9FE',
+      onContainer: '#3B0764',
+    },
+    tertiary: {
+      main: '#059669',  // Emerald 600
+      onMain: '#FFFFFF',
+      container: '#D1FAE5',
+      onContainer: '#064E3B',
+    },
+    error: {
+      main: '#DC2626',  // Red 600
+      onMain: '#FFFFFF',
+      container: '#FEE2E2',
+      onContainer: '#7F1D1D',
+    },
+    warning: {
+      main: '#F59E0B',  // Amber 500
+      onMain: '#FFFFFF',
+      container: '#FEF3C7',
+      onContainer: '#78350F',
+    },
+    surface: {
+      main: '#FEFEFE',
+      onMain: '#1A1C1E',
+      variant: '#F4F5FA',
+      onVariant: '#42474E',
+      dim: '#DADDE3',
+    },
+    background: '#F8FAFB',
+    onBackground: '#1A1C1E',
+    outline: '#C4C7CE',
+    outlineVariant: '#E1E3E8',
+    shadow: 'rgba(0, 0, 0, 0.15)',
+  },
+  
+  // Typography Scale (Material Design 3)
+  typography: {
+    displayLarge: 'text-[57px] font-normal leading-[64px] tracking-[-0.25px]',
+    displayMedium: 'text-[45px] font-normal leading-[52px]',
+    displaySmall: 'text-[36px] font-normal leading-[44px]',
+    headlineLarge: 'text-[32px] font-normal leading-[40px]',
+    headlineMedium: 'text-[28px] font-normal leading-[36px]',
+    headlineSmall: 'text-[24px] font-normal leading-[32px]',
+    titleLarge: 'text-[22px] font-medium leading-[28px]',
+    titleMedium: 'text-[16px] font-medium leading-[24px] tracking-[0.15px]',
+    titleSmall: 'text-[14px] font-medium leading-[20px] tracking-[0.1px]',
+    bodyLarge: 'text-[16px] font-normal leading-[24px] tracking-[0.5px]',
+    bodyMedium: 'text-[14px] font-normal leading-[20px] tracking-[0.25px]',
+    bodySmall: 'text-[12px] font-normal leading-[16px] tracking-[0.4px]',
+    labelLarge: 'text-[14px] font-medium leading-[20px] tracking-[0.1px]',
+    labelMedium: 'text-[12px] font-medium leading-[16px] tracking-[0.5px]',
+    labelSmall: 'text-[11px] font-medium leading-[16px] tracking-[0.5px]',
+  },
+  
+  // Elevation (Shadow)
+  elevation: {
+    0: 'shadow-none',
+    1: 'shadow-sm',  // 0px 1px 2px 0px rgba(0, 0, 0, 0.05)
+    2: 'shadow',  // 0px 1px 3px 0px rgba(0, 0, 0, 0.1), 0px 1px 2px 0px rgba(0, 0, 0, 0.06)
+    3: 'shadow-md',  // 0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -1px rgba(0, 0, 0, 0.06)
+    4: 'shadow-lg',  // 0px 10px 15px -3px rgba(0, 0, 0, 0.1), 0px 4px 6px -2px rgba(0, 0, 0, 0.05)
+    5: 'shadow-xl',  // 0px 20px 25px -5px rgba(0, 0, 0, 0.1), 0px 10px 10px -5px rgba(0, 0, 0, 0.04)
+  },
+  
+  // Spacing (8dp grid)
+  spacing: {
+    xs: '4px',    // 0.5 * 8dp
+    sm: '8px',    // 1 * 8dp
+    md: '12px',   // 1.5 * 8dp
+    lg: '16px',   // 2 * 8dp
+    xl: '24px',   // 3 * 8dp
+    '2xl': '32px', // 4 * 8dp
+    '3xl': '48px', // 6 * 8dp
+    '4xl': '64px', // 8 * 8dp
+  },
+  
+  // Border Radius
+  radius: {
+    xs: '4px',
+    sm: '8px',
+    md: '12px',
+    lg: '16px',
+    xl: '20px',
+    '2xl': '24px',
+    full: '9999px',
+  },
+  
+  // Transitions
+  transition: {
+    fast: 'transition-all duration-150 ease-out',
+    standard: 'transition-all duration-300 ease-out',
+    emphasized: 'transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1)',
+  },
+  
+  // State Layers (for hover, focus, pressed states)
+  state: {
+    hover: 'hover:bg-black/[0.04]',
+    focus: 'focus:bg-black/[0.12]',
+    pressed: 'active:bg-black/[0.12]',
+    disabled: 'opacity-38 cursor-not-allowed',
+  },
+};
 
 // =====================================
 // 定数定義
@@ -39,10 +158,42 @@ const getCompanyRank = (companyName) => {
 };
 
 const COMPANY_RANKS = {
-  'S': { label: 'S', color: 'bg-purple-500', textColor: 'text-purple-700', bgLight: 'bg-purple-50', description: 'UT系' },
-  'A': { label: 'A', color: 'bg-blue-500', textColor: 'text-blue-700', bgLight: 'bg-blue-50', description: '日研' },
-  'B': { label: 'B', color: 'bg-green-500', textColor: 'text-green-700', bgLight: 'bg-green-50', description: 'WITC・BN' },
-  'C': { label: 'C', color: 'bg-gray-400', textColor: 'text-gray-600', bgLight: 'bg-gray-50', description: 'その他' },
+  'S': { 
+    label: 'S', 
+    color: '#7C3AED',  // Material Violet
+    bg: '#EDE9FE',
+    border: '#C4B5FD',
+    textColor: '#5B21B6',
+    bgLight: '#F5F3FF',
+    description: 'UT系' 
+  },
+  'A': { 
+    label: 'A', 
+    color: '#2563EB',  // Material Blue
+    bg: '#DBEAFE',
+    border: '#93C5FD',
+    textColor: '#1E40AF',
+    bgLight: '#EFF6FF',
+    description: '日研' 
+  },
+  'B': { 
+    label: 'B', 
+    color: '#059669',  // Material Emerald
+    bg: '#D1FAE5',
+    border: '#6EE7B7',
+    textColor: '#047857',
+    bgLight: '#ECFDF5',
+    description: 'WITC・BN' 
+  },
+  'C': { 
+    label: 'C', 
+    color: '#64748B',  // Material Slate
+    bg: '#F1F5F9',
+    border: '#CBD5E1',
+    textColor: '#475569',
+    bgLight: '#F8FAFC',
+    description: 'その他' 
+  },
 };
 
 // スコア配分（合計100点満点 + ボーナス）
@@ -227,7 +378,7 @@ const transformSpreadsheetData = (row, headers) => {
 };
 
 // =====================================
-// コンポーネント
+// Material Design 3 UIコンポーネント
 // =====================================
 
 const Toast = ({ message, type = 'success', onClose }) => {
@@ -236,48 +387,114 @@ const Toast = ({ message, type = 'success', onClose }) => {
     return () => clearTimeout(timer);
   }, [onClose]);
 
-  const bgColor = type === 'success' ? 'bg-emerald-500' : type === 'error' ? 'bg-red-500' : type === 'warning' ? 'bg-amber-500' : 'bg-blue-500';
+  const getColors = () => {
+    switch (type) {
+      case 'success': return { bg: MD3.color.tertiary.container, text: MD3.color.tertiary.onContainer, icon: MD3.color.tertiary.main };
+      case 'error': return { bg: MD3.color.error.container, text: MD3.color.error.onContainer, icon: MD3.color.error.main };
+      case 'warning': return { bg: MD3.color.warning.container, text: MD3.color.warning.onContainer, icon: MD3.color.warning.main };
+      default: return { bg: MD3.color.primary.container, text: MD3.color.primary.onContainer, icon: MD3.color.primary.main };
+    }
+  };
+  
+  const colors = getColors();
   
   return (
-    <div className={`fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-xl z-[100] flex items-center space-x-2`}>
-      {type === 'success' && <Check size={20} />}
-      {type === 'error' && <AlertCircle size={20} />}
-      {type === 'warning' && <AlertTriangle size={20} />}
-      {type === 'info' && <Info size={20} />}
-      <span className="font-medium">{message}</span>
-      <button onClick={onClose} className="ml-2 hover:opacity-80"><X size={16} /></button>
+    <div 
+      className={`fixed top-6 right-6 ${MD3.elevation[4]} ${MD3.transition.emphasized} z-[100] flex items-center gap-3 px-6 py-4 rounded-2xl min-w-[320px]`}
+      style={{ backgroundColor: colors.bg, color: colors.text }}
+    >
+      <div style={{ color: colors.icon }}>
+        {type === 'success' && <CheckCircle size={24} />}
+        {type === 'error' && <AlertCircle size={24} />}
+        {type === 'warning' && <AlertTriangle size={24} />}
+        {type === 'info' && <Info size={24} />}
+      </div>
+      <span className={`${MD3.typography.bodyLarge} flex-1 font-medium`}>{message}</span>
+      <button 
+        onClick={onClose} 
+        className={`${MD3.transition.fast} hover:opacity-70 p-1 rounded-full`}
+        style={{ color: colors.text }}
+      >
+        <X size={20} />
+      </button>
     </div>
   );
 };
 
 const LoadingSpinner = ({ message = '読み込み中...' }) => (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
-    <div className="bg-white rounded-xl p-8 flex flex-col items-center space-y-4 shadow-2xl">
-      <Loader className="animate-spin text-indigo-600" size={48} />
-      <p className="text-gray-700 font-medium text-lg">{message}</p>
+  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100]">
+    <div 
+      className={`${MD3.elevation[5]} rounded-3xl p-10 flex flex-col items-center gap-6 min-w-[300px]`}
+      style={{ backgroundColor: MD3.color.surface.main }}
+    >
+      <div className="relative w-16 h-16">
+        <Loader 
+          className="animate-spin absolute inset-0" 
+          size={64} 
+          style={{ color: MD3.color.primary.main }}
+          strokeWidth={2.5}
+        />
+        <div 
+          className="absolute inset-2 rounded-full"
+          style={{ backgroundColor: MD3.color.primary.container, opacity: 0.2 }}
+        />
+      </div>
+      <p 
+        className={`${MD3.typography.bodyLarge} font-medium text-center`}
+        style={{ color: MD3.color.onSurface }}
+      >
+        {message}
+      </p>
     </div>
   </div>
 );
 
 const ProgressStepper = ({ currentStep, steps }) => (
-  <div className="bg-white rounded-xl shadow-md p-4 mb-6">
+  <div 
+    className={`${MD3.elevation[1]} rounded-2xl p-6 mb-6`}
+    style={{ backgroundColor: MD3.color.surface.main }}
+  >
     <div className="flex justify-between items-center">
       {steps.map((step, index) => (
         <React.Fragment key={index}>
-          <div className="flex flex-col items-center flex-1">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all ${
-              index < currentStep ? 'bg-emerald-500 text-white'
-                : index === currentStep ? 'bg-indigo-600 text-white ring-4 ring-indigo-200'
-                : 'bg-gray-200 text-gray-500'
-            }`}>
-              {index < currentStep ? <Check size={20} /> : index + 1}
+          <div className="flex flex-col items-center flex-1 relative">
+            <div 
+              className={`w-12 h-12 rounded-full flex items-center justify-center font-bold ${MD3.transition.standard} ${MD3.elevation[index === currentStep ? 2 : 0]}`}
+              style={{
+                backgroundColor: index < currentStep ? MD3.color.tertiary.main 
+                  : index === currentStep ? MD3.color.primary.main
+                  : MD3.color.surface.variant,
+                color: index <= currentStep ? MD3.color.primary.onMain : MD3.color.surface.onVariant,
+              }}
+            >
+              {index < currentStep ? <CheckCircle size={24} /> : index + 1}
             </div>
-            <span className={`mt-2 text-xs md:text-sm font-medium text-center ${index <= currentStep ? 'text-indigo-600' : 'text-gray-400'}`}>
+            {index === currentStep && (
+              <div 
+                className="absolute -inset-1 rounded-full animate-pulse"
+                style={{ 
+                  border: `2px solid ${MD3.color.primary.main}`,
+                  opacity: 0.3,
+                }}
+              />
+            )}
+            <span 
+              className={`mt-3 text-center ${MD3.typography.labelMedium} ${MD3.transition.standard} px-2`}
+              style={{ 
+                color: index <= currentStep ? MD3.color.primary.main : MD3.color.surface.onVariant 
+              }}
+            >
               {step}
             </span>
           </div>
           {index < steps.length - 1 && (
-            <div className={`flex-1 h-1 mx-2 rounded transition-all ${index < currentStep ? 'bg-emerald-500' : 'bg-gray-200'}`} style={{ maxWidth: '60px' }} />
+            <div 
+              className={`flex-1 h-[2px] mx-3 rounded-full ${MD3.transition.standard}`} 
+              style={{ 
+                backgroundColor: index < currentStep ? MD3.color.tertiary.main : MD3.color.outline,
+                maxWidth: '80px' 
+              }} 
+            />
           )}
         </React.Fragment>
       ))}
@@ -288,19 +505,41 @@ const ProgressStepper = ({ currentStep, steps }) => (
 const CompanyRankBadge = ({ rank, showLabel = false }) => {
   const config = COMPANY_RANKS[rank] || COMPANY_RANKS['C'];
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-white text-xs font-bold ${config.color}`}>
-      {config.label}
-      {showLabel && <span className="text-xs opacity-90">{config.description}</span>}
+    <span 
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full ${MD3.typography.labelMedium} font-bold ${MD3.transition.fast}`}
+      style={{ 
+        backgroundColor: config.bg, 
+        color: config.textColor,
+        border: `1px solid ${config.border}`,
+      }}
+    >
+      <span className="text-sm">{config.label}</span>
+      {showLabel && (
+        <span className={`${MD3.typography.labelSmall} opacity-90`}>
+          {config.description}
+        </span>
+      )}
     </span>
   );
 };
 
 const ScoreBreakdown = ({ breakdown }) => (
-  <div className="space-y-1 text-xs">
+  <div className="space-y-2">
     {breakdown.map((item, i) => (
-      <div key={i} className="flex justify-between items-center">
-        <span className="text-slate-600">{item.label}</span>
-        <span className={`font-bold ${item.score >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+      <div key={i} className="flex justify-between items-center group">
+        <span 
+          className={`${MD3.typography.bodyMedium}`}
+          style={{ color: MD3.color.surface.onVariant }}
+        >
+          {item.label}
+        </span>
+        <span 
+          className={`${MD3.typography.titleSmall} font-bold px-3 py-1 rounded-lg ${MD3.transition.fast}`}
+          style={{ 
+            backgroundColor: item.score >= 0 ? MD3.color.tertiary.container : MD3.color.error.container,
+            color: item.score >= 0 ? MD3.color.tertiary.onContainer : MD3.color.error.onContainer,
+          }}
+        >
           {item.score >= 0 ? '+' : ''}{item.score}点
         </span>
       </div>
@@ -1443,27 +1682,58 @@ const JobMatchingFlowchart = () => {
   useEffect(() => { fetchSpreadsheetData(); }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-50">
+    <div className="min-h-screen" style={{ backgroundColor: MD3.color.background }}>
       {/* ヘッダー */}
-      <header className="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 py-3">
+      <header 
+        className={`${MD3.elevation[2]} sticky top-0 z-40 border-b`}
+        style={{ 
+          backgroundColor: MD3.color.surface.main,
+          borderColor: MD3.color.outlineVariant,
+        }}
+      >
+        <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center">
-                <Briefcase className="text-white" size={24} />
+            <div className="flex items-center gap-4">
+              <div 
+                className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                style={{ backgroundColor: MD3.color.primary.main }}
+              >
+                <Briefcase style={{ color: MD3.color.primary.onMain }} size={28} />
               </div>
               <div>
-                <h1 className="text-lg font-bold text-slate-800">案件マッチングツール</h1>
-                <p className="text-xs text-slate-500">柔軟な条件設定で最適な案件をピックアップ</p>
+                <h1 
+                  className={MD3.typography.titleLarge}
+                  style={{ color: MD3.color.onSurface }}
+                >
+                  案件マッチングツール
+                </h1>
+                <p 
+                  className={MD3.typography.bodySmall}
+                  style={{ color: MD3.color.surface.onVariant }}
+                >
+                  柔軟な条件設定で最適な案件をピックアップ
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <button onClick={fetchSpreadsheetData} disabled={isLoading}
-                className="flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 text-sm">
-                <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />データ更新
+              <button 
+                onClick={fetchSpreadsheetData} 
+                disabled={isLoading}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full ${MD3.transition.standard}`}
+                style={{
+                  backgroundColor: MD3.color.surface.variant,
+                  color: MD3.color.onSurface,
+                  opacity: isLoading ? 0.6 : 1,
+                }}
+              >
+                <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
+                <span className={MD3.typography.labelMedium}>データ更新</span>
               </button>
               {allJobs.length > 0 && (
-                <span className="text-xs text-slate-400 hidden md:block">
+                <span 
+                  className={`${MD3.typography.bodySmall} hidden md:block`}
+                  style={{ color: MD3.color.surface.onVariant }}
+                >
                   全{allJobs.length}件 / 更新: {lastFetchTime?.toLocaleTimeString()}
                 </span>
               )}
@@ -1472,73 +1742,186 @@ const JobMatchingFlowchart = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-4">
+      <main className="max-w-7xl mx-auto px-6 py-6">
         <ProgressStepper currentStep={mainStep} steps={['データ取得', '求職者情報', '案件ピックアップ', '分岐フロー']} />
 
         {/* Step 1: 求職者情報入力 */}
         {mainStep === 1 && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* 基本情報 */}
-              <div className="bg-white rounded-xl shadow-sm p-5">
-                <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                  <User className="text-indigo-600" size={20} />求職者基本情報
-                </h2>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
+              <div 
+                className={`${MD3.elevation[1]} rounded-3xl p-6`}
+                style={{ backgroundColor: MD3.color.surface.main }}
+              >
+                <div className="flex items-center gap-3 mb-6">
+                  <div 
+                    className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                    style={{ backgroundColor: MD3.color.primary.container }}
+                  >
+                    <User size={24} style={{ color: MD3.color.primary.main }} />
+                  </div>
+                  <h2 
+                    className={MD3.typography.titleLarge}
+                    style={{ color: MD3.color.onSurface }}
+                  >
+                    求職者基本情報
+                  </h2>
+                </div>
+                <div className="space-y-5">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-600 mb-1">年齢 *</label>
-                      <input type="number" value={seekerConditions.age}
+                      <label 
+                        className={`block ${MD3.typography.labelMedium} mb-2`}
+                        style={{ color: MD3.color.onSurface }}
+                      >
+                        年齢 <span style={{ color: MD3.color.error.main }}>*</span>
+                      </label>
+                      <input 
+                        type="number" 
+                        value={seekerConditions.age}
                         onChange={(e) => setSeekerConditions(prev => ({ ...prev, age: e.target.value }))}
-                        placeholder="例: 35" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                        placeholder="例: 35" 
+                        className={`w-full px-4 py-3 rounded-xl ${MD3.transition.fast} border-2`}
+                        style={{
+                          backgroundColor: MD3.color.surface.variant,
+                          borderColor: MD3.color.outline,
+                          color: MD3.color.onSurface,
+                        }}
+                      />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-600 mb-1">性別</label>
-                      <select value={seekerConditions.gender}
+                      <label 
+                        className={`block ${MD3.typography.labelMedium} mb-2`}
+                        style={{ color: MD3.color.onSurface }}
+                      >
+                        性別 <span style={{ color: MD3.color.error.main }}>*</span>
+                      </label>
+                      <select 
+                        value={seekerConditions.gender}
                         onChange={(e) => setSeekerConditions(prev => ({ ...prev, gender: e.target.value }))}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        className={`w-full px-4 py-3 rounded-xl ${MD3.transition.fast} border-2`}
+                        style={{
+                          backgroundColor: MD3.color.surface.variant,
+                          borderColor: MD3.color.outline,
+                          color: MD3.color.onSurface,
+                        }}
+                      >
                         {genderOptions.map(g => <option key={g} value={g}>{g}</option>)}
                       </select>
                     </div>
                   </div>
                   
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
-                    <h3 className="font-bold text-amber-800 mb-1">⚙️ オプション設定</h3>
-                    <p className="text-amber-700 text-xs">以下の項目は未入力でも検索可能です。入力すると精度が向上します。</p>
+                  <div 
+                    className="rounded-2xl p-4"
+                    style={{ 
+                      backgroundColor: MD3.color.warning.container,
+                      border: `1px solid ${MD3.color.warning.main}`,
+                    }}
+                  >
+                    <h3 
+                      className={`${MD3.typography.labelLarge} mb-1 flex items-center gap-2`}
+                      style={{ color: MD3.color.warning.onContainer }}
+                    >
+                      <Settings size={16} />
+                      オプション設定
+                    </h3>
+                    <p 
+                      className={MD3.typography.bodySmall}
+                      style={{ color: MD3.color.warning.onContainer }}
+                    >
+                      以下の項目は未入力でも検索可能です。入力すると精度が向上します。
+                    </p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-600 mb-1">
+                      <label 
+                        className={`block ${MD3.typography.labelMedium} mb-2 flex items-center gap-2`}
+                        style={{ color: MD3.color.onSurface }}
+                      >
                         希望月収（万円）
-                        <span className="text-xs text-amber-600 ml-1">オプション</span>
+                        <span 
+                          className={`${MD3.typography.labelSmall} px-2 py-0.5 rounded-full`}
+                          style={{ 
+                            backgroundColor: MD3.color.warning.container,
+                            color: MD3.color.warning.onContainer,
+                          }}
+                        >
+                          オプション
+                        </span>
                       </label>
-                      <input type="number" value={seekerConditions.monthlySalary}
+                      <input 
+                        type="number" 
+                        value={seekerConditions.monthlySalary}
                         onChange={(e) => setSeekerConditions(prev => ({ ...prev, monthlySalary: e.target.value }))}
-                        placeholder="未設定" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                        placeholder="未設定" 
+                        className={`w-full px-4 py-3 rounded-xl ${MD3.transition.fast} border-2`}
+                        style={{
+                          backgroundColor: MD3.color.surface.variant,
+                          borderColor: MD3.color.outline,
+                          color: MD3.color.onSurface,
+                        }}
+                      />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-600 mb-1">
+                      <label 
+                        className={`block ${MD3.typography.labelMedium} mb-2 flex items-center gap-2`}
+                        style={{ color: MD3.color.onSurface }}
+                      >
                         希望勤務形態
-                        <span className="text-xs text-amber-600 ml-1">オプション</span>
+                        <span 
+                          className={`${MD3.typography.labelSmall} px-2 py-0.5 rounded-full`}
+                          style={{ 
+                            backgroundColor: MD3.color.warning.container,
+                            color: MD3.color.warning.onContainer,
+                          }}
+                        >
+                          オプション
+                        </span>
                       </label>
-                      <select value={seekerConditions.shiftWork}
+                      <select 
+                        value={seekerConditions.shiftWork}
                         onChange={(e) => setSeekerConditions(prev => ({ ...prev, shiftWork: e.target.value }))}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        className={`w-full px-4 py-3 rounded-xl ${MD3.transition.fast} border-2`}
+                        style={{
+                          backgroundColor: MD3.color.surface.variant,
+                          borderColor: MD3.color.outline,
+                          color: MD3.color.onSurface,
+                        }}
+                      >
                         <option value="">未設定</option>
                         {shiftWorkOptions.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-600 mb-1">
+                      <label 
+                        className={`block ${MD3.typography.labelMedium} mb-2 flex items-center gap-2`}
+                        style={{ color: MD3.color.onSurface }}
+                      >
                         通勤手段
-                        <span className="text-xs text-amber-600 ml-1">オプション</span>
+                        <span 
+                          className={`${MD3.typography.labelSmall} px-2 py-0.5 rounded-full`}
+                          style={{ 
+                            backgroundColor: MD3.color.warning.container,
+                            color: MD3.color.warning.onContainer,
+                          }}
+                        >
+                          オプション
+                        </span>
                       </label>
-                      <select value={seekerConditions.commuteMethod}
+                      <select 
+                        value={seekerConditions.commuteMethod}
                         onChange={(e) => setSeekerConditions(prev => ({ ...prev, commuteMethod: e.target.value }))}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        className={`w-full px-4 py-3 rounded-xl ${MD3.transition.fast} border-2`}
+                        style={{
+                          backgroundColor: MD3.color.surface.variant,
+                          borderColor: MD3.color.outline,
+                          color: MD3.color.onSurface,
+                        }}
+                      >
                         {commuteMethods.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                       </select>
                     </div>
