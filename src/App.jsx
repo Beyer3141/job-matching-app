@@ -320,6 +320,8 @@ const transformSpreadsheetData = (row, headers) => {
     workplaceVisit: getVal('職場見学') || '',
     remarks: getVal('配属可能条件に関する備考') || '',
     commuteTime: null,
+    placement2025: parseInt(getVal('2025実績')) || 0,  // BF列
+    placement2024: parseInt(getVal('2024実績')) || 0,  // BG列
   };
 };
 
@@ -658,6 +660,29 @@ const JobDetailModal = ({ job, onClose, seekerConditions }) => {
                 <InfoRow label="翌々月欠員数" value={job.nextNextMonthVacancy ? `${job.nextNextMonthVacancy}名` : '0名'} />
               </Section>
 
+              {/* 入社実績セクション追加 */}
+              {((job.placement2025 || 0) + (job.placement2024 || 0) > 0) && (
+                <Section title="📈 入社実績">
+                  <div className="bg-gradient-to-r from-teal-50 to-emerald-50 rounded-lg p-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-teal-700">{job.placement2025 || 0}名</div>
+                        <div className="text-xs text-teal-600">2025年実績</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-emerald-700">{job.placement2024 || 0}名</div>
+                        <div className="text-xs text-emerald-600">2024年実績</div>
+                      </div>
+                    </div>
+                    <div className="mt-2 pt-2 border-t border-teal-200 text-center">
+                      <span className="text-sm font-bold text-teal-800">
+                        合計 {(job.placement2025 || 0) + (job.placement2024 || 0)}名
+                      </span>
+                    </div>
+                  </div>
+                </Section>
+              )}
+
               {job.scoreBreakdown && (
                 <Section title="📈 スコア内訳">
                   <div className="bg-slate-50 rounded-lg p-3">
@@ -816,6 +841,10 @@ const JobMatchingFlowchart = () => {
   const [activeTab, setActiveTab] = useState('all');
   const [sortBy, setSortBy] = useState('distance');
   
+  // 派遣会社フィルター用のState
+  const [selectedCompanies, setSelectedCompanies] = useState(new Set());
+  const [showCompanyFilter, setShowCompanyFilter] = useState(false);
+  
   // オプション条件の折りたたみ状態
   const [showFilterOptions, setShowFilterOptions] = useState(false);
 
@@ -829,10 +858,43 @@ const JobMatchingFlowchart = () => {
 
   const showToast = (message, type = 'success') => setToast({ message, type });
 
+  // 派遣会社一覧を取得
+  const getUniqueCompanies = () => {
+    const companies = new Set();
+    pickedJobs.forEach(job => {
+      if (job.company) companies.add(job.company);
+    });
+    return Array.from(companies).sort();
+  };
+
+  const uniqueCompanies = getUniqueCompanies();
+
+  // 派遣会社選択のトグル
+  const toggleCompanySelection = (company) => {
+    setSelectedCompanies(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(company)) {
+        newSet.delete(company);
+      } else {
+        newSet.add(company);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllCompanies = () => {
+    setSelectedCompanies(new Set(uniqueCompanies));
+  };
+
+  const deselectAllCompanies = () => {
+    setSelectedCompanies(new Set());
+  };
+
   // タブとソートに応じてフィルタリング＆ソート
   const getFilteredAndSortedJobs = () => {
     let filtered = [...pickedJobs];
 
+    // 検索フィルター
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(job =>
@@ -844,6 +906,11 @@ const JobMatchingFlowchart = () => {
       );
     }
 
+    // 派遣会社フィルター（新規追加）
+    if (selectedCompanies.size > 0) {
+      filtered = filtered.filter(job => selectedCompanies.has(job.company));
+    }
+
     // タブフィルター
     if (activeTab === 'day-shift') {
       filtered = filtered.filter(job => job.shiftWork === '日勤');
@@ -851,31 +918,33 @@ const JobMatchingFlowchart = () => {
       filtered = filtered.filter(job => job.shiftWork !== '日勤');
     } else if (activeTab === 'high-fee') {
       filtered = filtered.filter(job => job.fee >= 40);
+    } else if (activeTab === 'placement-history') {
+      // 入社実績がある案件のみ（新規追加）
+      filtered = filtered.filter(job => (job.placement2025 || 0) + (job.placement2024 || 0) > 0);
     }
 
-    // ソート（常に「良い順」で返す。ascは昇順=小さい順、descは降順=大きい順）
+    // ソート（常に「良い順」で返す）
     filtered.sort((a, b) => {
       switch (sortBy) {
         case 'score':
-          // スコアは高い方が良い → 降順
           return (b.pickupScore || 0) - (a.pickupScore || 0);
         case 'fee':
-          // Feeは高い方が良い → 降順
           return (b.fee || 0) - (a.fee || 0);
         case 'distance':
-          // 距離は近い方が良い → 昇順
           if (!a.distance && !b.distance) return 0;
-          if (!a.distance) return 1;  // 距離不明は後ろ
+          if (!a.distance) return 1;
           if (!b.distance) return -1;
           return a.distance - b.distance;
         case 'vacancy':
-          // 欠員数は多い方が良い → 降順
           const aVacancy = (a.vacancy || 0) + (a.nextMonthVacancy || 0);
           const bVacancy = (b.vacancy || 0) + (b.nextMonthVacancy || 0);
           return bVacancy - aVacancy;
         case 'salary':
-          // 月収は高い方が良い → 降順
           return (b.monthlySalary || 0) - (a.monthlySalary || 0);
+        case 'placement':  // 新規追加：入社実績順
+          const aPlacement = (a.placement2025 || 0) + (a.placement2024 || 0);
+          const bPlacement = (b.placement2025 || 0) + (b.placement2024 || 0);
+          return bPlacement - aPlacement;
         default:
           return 0;
       }
@@ -1176,12 +1245,13 @@ const JobMatchingFlowchart = () => {
     setSelectedJobIds(new Set());
     setSearchQuery('');
     setActiveTab('all');
+    setSelectedCompanies(new Set()); // 派遣会社フィルターもリセット
     
     // 通勤時間・通勤手段が設定されている場合はスコア順、そうでなければ距離順
     if (seekerConditions.commuteMethod && seekerConditions.commuteTime) {
-      setSortBy('score');  // 通勤圏内でスコアが高い順
+      setSortBy('score');
     } else {
-      setSortBy('distance');  // 距離が近い順
+      setSortBy('distance');
     }
     
     setMainStep(2);
@@ -1395,7 +1465,6 @@ const JobMatchingFlowchart = () => {
 
       setJobs(selectedJobs);
       
-      // フローツリーを構築
       const tree = buildFlowTree(selectedJobs);
       setFlowTree(tree);
       const positions = calculateNodePositions(tree);
@@ -1417,10 +1486,11 @@ const JobMatchingFlowchart = () => {
   };
 
   const exportToCSV = () => {
-    const headers = ['案件名', '派遣会社', 'ランク', 'スコア', '距離(km)', '推定通勤(分)', 'Fee(万)', '月収(万)', '欠員数', '都道府県', '住所'];
+    const headers = ['案件名', '派遣会社', 'ランク', 'スコア', '距離(km)', '推定通勤(分)', 'Fee(万)', '月収(万)', '欠員数', '都道府県', '住所', '2025実績', '2024実績'];
     const rows = pickedJobs.map(job => [
       job.name, job.company, job.companyRank, job.pickupScore, job.distance?.toFixed(1) || '-',
-      job.estimatedTime || '-', job.fee, job.monthlySalary, job.vacancy, job.prefecture, job.address
+      job.estimatedTime || '-', job.fee, job.monthlySalary, job.vacancy, job.prefecture, job.address,
+      job.placement2025 || 0, job.placement2024 || 0
     ]);
     const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -1910,6 +1980,92 @@ const JobMatchingFlowchart = () => {
               )}
             </div>
 
+            {/* 派遣会社フィルター（新規追加） */}
+            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+              <button
+                onClick={() => setShowCompanyFilter(!showCompanyFilter)}
+                className="w-full px-4 py-3 flex items-center justify-between bg-slate-50 hover:bg-slate-100 transition"
+              >
+                <div className="flex items-center gap-2">
+                  <Building size={18} className="text-indigo-600" />
+                  <span className="font-medium text-slate-700">派遣会社フィルター</span>
+                  {selectedCompanies.size > 0 && (
+                    <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-xs font-bold">
+                      {selectedCompanies.size}社選択中
+                    </span>
+                  )}
+                </div>
+                {showCompanyFilter ? <ChevronUp size={20} className="text-slate-500" /> : <ChevronDown size={20} className="text-slate-500" />}
+              </button>
+              
+              {showCompanyFilter && (
+                <div className="p-4 border-t border-slate-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm text-slate-600">
+                      {uniqueCompanies.length}社の派遣会社が見つかりました
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={selectAllCompanies}
+                        className="text-xs px-3 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg transition"
+                      >
+                        全選択
+                      </button>
+                      <button
+                        onClick={deselectAllCompanies}
+                        className="text-xs px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition"
+                      >
+                        全解除
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-60 overflow-y-auto">
+                    {uniqueCompanies.map(company => {
+                      const isSelected = selectedCompanies.has(company);
+                      const companyJobs = pickedJobs.filter(j => j.company === company);
+                      const rank = getCompanyRank(company);
+                      
+                      return (
+                        <label
+                          key={company}
+                          className={`flex items-center gap-2 p-2 rounded-lg border-2 cursor-pointer transition-all ${
+                            isSelected
+                              ? 'border-indigo-500 bg-indigo-50'
+                              : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleCompanySelection(company)}
+                            className="w-4 h-4 text-indigo-600 rounded focus:ring-2 focus:ring-indigo-500"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1">
+                              <CompanyRankBadge rank={rank} />
+                              <span className="text-xs font-medium text-slate-700 truncate">
+                                {company}
+                              </span>
+                            </div>
+                            <span className="text-xs text-slate-500">
+                              {companyJobs.length}件
+                            </span>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  
+                  {selectedCompanies.size > 0 && (
+                    <div className="mt-3 p-2 bg-indigo-50 rounded-lg text-sm text-indigo-700">
+                      <strong>{selectedCompanies.size}社</strong>の派遣会社でフィルタリング中
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* タブとソート */}
             <div className="bg-white rounded-xl shadow-sm p-4">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -1940,12 +2096,22 @@ const JobMatchingFlowchart = () => {
                     🌙 その他 ({pickedJobs.filter(j => j.shiftWork !== '日勤').length})
                   </button>
                   <button
-                    onClick={() => { setActiveTab('high-fee'); setSortBy('fee'); setSortOrder('desc'); }}
+                    onClick={() => { setActiveTab('high-fee'); }}
                     className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${
                       activeTab === 'high-fee' ? 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
                     }`}
                   >
                     💎 高額40万+ ({pickedJobs.filter(j => j.fee >= 40).length})
+                  </button>
+                  
+                  {/* 新規追加：入社実績タブ */}
+                  <button
+                    onClick={() => { setActiveTab('placement-history'); setSortBy('placement'); }}
+                    className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${
+                      activeTab === 'placement-history' ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                    }`}
+                  >
+                    📈 入社実績 ({pickedJobs.filter(j => (j.placement2025 || 0) + (j.placement2024 || 0) > 0).length})
                   </button>
                 </div>
 
@@ -1962,6 +2128,7 @@ const JobMatchingFlowchart = () => {
                     <option value="fee">Fee順（高い順）</option>
                     <option value="vacancy">欠員数順（多い順）</option>
                     <option value="salary">月収順（高い順）</option>
+                    <option value="placement">入社実績順（多い順）</option>
                   </select>
                 </div>
               </div>
@@ -2037,6 +2204,14 @@ const JobMatchingFlowchart = () => {
                                       💎高額
                                     </span>
                                   )}
+                                  {/* 入社実績バッジ（新規追加） */}
+                                  {((job.placement2025 || 0) + (job.placement2024 || 0) > 0) && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-teal-100 text-teal-700 rounded-full text-xs font-bold">
+                                      📈{(job.placement2025 || 0) + (job.placement2024 || 0)}名
+                                      {job.placement2025 > 0 && <span className="text-[10px]">(25:{job.placement2025})</span>}
+                                      {job.placement2024 > 0 && <span className="text-[10px]">(24:{job.placement2024})</span>}
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -2065,6 +2240,13 @@ const JobMatchingFlowchart = () => {
                   <div className="text-center py-8 text-slate-500">
                     <DollarSign size={48} className="mx-auto mb-3 opacity-30" />
                     <p>Fee 40万円以上の案件がありません</p>
+                  </div>
+                )}
+                
+                {filteredPickedJobs.length === 0 && !searchQuery && activeTab === 'placement-history' && (
+                  <div className="text-center py-8 text-slate-500">
+                    <TrendingUp size={48} className="mx-auto mb-3 opacity-30" />
+                    <p>入社実績のある案件がありません</p>
                   </div>
                 )}
               </div>
@@ -2294,72 +2476,53 @@ const TreeNodeRenderer = ({ node, nodePositions, selectedJobForTracking, getPath
 
   return (
     <>
-      <div className={`absolute ${colors.bg} border-2 ${colors.border} rounded-lg shadow-md hover:shadow-xl cursor-pointer ${isOnTrackingPath ? 'ring-4 ring-purple-400' : ''}`}
-        style={{ left: `${pos.x}px`, top: `${pos.y}px`, width: '180px', zIndex: isOnTrackingPath ? 30 : 20 }}
-        onMouseEnter={() => setHoveredNode(node.id)} onMouseLeave={() => setHoveredNode(null)}>
-        <div className="p-2">
-          {node.type === 'start' && (
-            <div className="text-center">
-              <div className={`${colors.header} -mx-2 -mt-2 px-2 py-2 mb-2 rounded-t-lg`}>
-                <span className="text-sm font-bold text-indigo-900">🚀 スタート</span>
+      <div className={`absolute ${colors.bg} border-2 ${colors.border} rounded-lg shadow-md hover:shadow-xl cursor-
+      pointer transition-all`}
+        style={{ left: `${pos.x}px`, top: `${pos.y}px`, width: '200px', zIndex: isOnTrackingPath ? 50 : 20 }}
+        onMouseEnter={() => setHoveredNode(node.id)}
+        onMouseLeave={() => setHoveredNode(null)}>
+        <div className={`${colors.header} px-2 py-1 rounded-t-lg border-b ${colors.border}`}>
+          <div className="font-bold text-xs text-center">
+            {node.type === 'start' && '🚀 START'}
+            {node.type === 'pass' && `✅ ${node.condition}`}
+            {node.type === 'relax' && `⚠️ ${node.condition}`}
+            {node.type === 'relax-accepted' && '✔️ 緩和OK'}
+            {node.type === 'relax-rejected' && '✘ 緩和NG'}
+            {node.type === 'exclude' && `❌ ${node.condition}`}
+            {node.type === 'success' && '🎉 紹介可能'}
+            {node.type === 'fail' && '❌ 除外'}
+          </div>
+        </div>
+        <div className="p-2 text-xs">
+          {node.jobs && node.jobs.length > 0 && (
+            <>
+              <div className="font-bold text-center mb-1">
+                {node.jobs.length}件
               </div>
-              <div className="text-sm font-semibold">{node.jobs?.length || 0}件</div>
-            </div>
+              {avgFee > 0 && (
+                <div className="text-center text-gray-600">
+                  平均Fee: {avgFee}万
+                </div>
+              )}
+            </>
           )}
-          {node.type === 'success' && (
-            <div className="text-center">
-              <div className={`${colors.header} -mx-2 -mt-2 px-2 py-2 mb-2 rounded-t-lg`}>
-                <span className="text-sm font-bold text-emerald-900">✅ 紹介可能</span>
-              </div>
-              <div className="text-sm font-semibold">{node.jobs?.length || 0}件</div>
-              {avgFee > 0 && <div className="text-xs text-emerald-600">💰平均{avgFee}万</div>}
-            </div>
-          )}
-          {node.type === 'pass' && (
-            <div className="text-center">
-              <div className={`${colors.header} -mx-2 -mt-2 px-2 py-2 mb-2 rounded-t-lg`}>
-                <span className="text-xs font-bold text-emerald-900">✅ {node.condition}OK</span>
-              </div>
-              <div className="text-sm font-semibold">{node.jobs?.length || 0}件</div>
-            </div>
-          )}
-          {node.type === 'relax' && (
-            <div className="text-center">
-              <div className={`${colors.header} -mx-2 -mt-2 px-2 py-2 mb-2 rounded-t-lg`}>
-                <span className="text-xs font-bold text-amber-900">⚠️ {node.condition}確認</span>
-              </div>
-              <div className="text-sm font-semibold">{node.jobs?.length || 0}件</div>
-            </div>
-          )}
-          {(node.type === 'relax-accepted' || node.type === 'relax-rejected') && (
-            <div className="text-center">
-              <div className={`${colors.header} -mx-2 -mt-2 px-2 py-2 mb-2 rounded-t-lg`}>
-                <span className="text-xs font-bold">{node.condition}</span>
-              </div>
-              <div className="text-sm font-semibold">{node.jobs?.length || 0}件</div>
-            </div>
-          )}
-          {node.type === 'exclude' && (
-            <div className="text-center">
-              <div className={`${colors.header} -mx-2 -mt-2 px-2 py-2 mb-2 rounded-t-lg`}>
-                <span className="text-xs font-bold text-red-900">❌ {node.condition}NG</span>
-              </div>
-              <div className="text-sm text-red-700">{node.excludedJobs?.length || 0}件除外</div>
-            </div>
-          )}
-          {node.type === 'fail' && (
-            <div className="text-center">
-              <div className={`${colors.header} -mx-2 -mt-2 px-2 py-2 mb-2 rounded-t-lg`}>
-                <span className="text-xs font-bold text-gray-700">紹介不可</span>
-              </div>
-              <div className="text-sm text-gray-600">{node.excludedJobs?.length || 0}件</div>
+          {node.excludedJobs && node.excludedJobs.length > 0 && (
+            <div className="text-center text-red-600 font-semibold">
+              除外: {node.excludedJobs.length}件
             </div>
           )}
         </div>
       </div>
-      {(node.children || []).map(child => (
-        <TreeNodeRenderer key={child.id} node={child} nodePositions={nodePositions}
-          selectedJobForTracking={selectedJobForTracking} getPathToJob={getPathToJob} setHoveredNode={setHoveredNode} />
+
+      {node.children?.map(child => (
+        <TreeNodeRenderer
+          key={child.id}
+          node={child}
+          nodePositions={nodePositions}
+          selectedJobForTracking={selectedJobForTracking}
+          getPathToJob={getPathToJob}
+          setHoveredNode={setHoveredNode}
+        />
       ))}
     </>
   );
