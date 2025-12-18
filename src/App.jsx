@@ -1088,28 +1088,46 @@ const JobMatchingFlowchart = () => {
       }
 
       let distance = null;
-      let estimatedTime = null;
-      
-      if (seekerLat && seekerLng && job.lat && job.lng) {
-        distance = calculateDistance(seekerLat, seekerLng, job.lat, job.lng);
-        
-        if (seekerConditions.commuteMethod) {
-          estimatedTime = estimateCommuteTime(distance, seekerConditions.commuteMethod);
-          
-          if (estimatedTime > maxCommuteTime) {
-            eligible = false;
-            continue;
-          }
-        }
-      }
+let estimatedTime = null;
+
+if (seekerLat && seekerLng && job.lat && job.lng) {
+  distance = calculateDistance(seekerLat, seekerLng, job.lat, job.lng);
+  
+  if (seekerConditions.commuteMethod) {
+    estimatedTime = estimateCommuteTime(distance, seekerConditions.commuteMethod);
+    
+    // 60分以内なら全てピックアップ（絶対条件）
+    if (estimatedTime > 80) {
+      eligible = false;
+      continue;
+    }
+  }
+}
 
       if (!eligible) continue;
 
       // スコア計算
       if (estimatedTime !== null && seekerConditions.commuteMethod) {
-        const distanceRatio = 1 - (estimatedTime / maxCommuteTime);
-        const distanceScore = Math.round(SCORE_WEIGHTS.distance * distanceRatio);
-        scoreBreakdown.push({ label: `通勤時間（${estimatedTime}分/${maxCommuteTime}分）`, score: distanceScore });
+        let distanceScore = 0;
+        
+        if (estimatedTime <= maxCommuteTime) {
+          // 希望時間以内なら満点
+          distanceScore = SCORE_WEIGHTS.distance; // 25点
+          scoreBreakdown.push({ 
+            label: `通勤時間（${estimatedTime}分/${maxCommuteTime}分）✨希望範囲内`, 
+            score: distanceScore 
+          });
+        } else if (estimatedTime <= 60) {
+          // 希望時間超過だが60分以内 → 線形に減点
+          const overTimeRatio = (estimatedTime - maxCommuteTime) / (60 - maxCommuteTime);
+          distanceScore = Math.round(SCORE_WEIGHTS.distance * (1 - overTimeRatio));
+          const overMinutes = estimatedTime - maxCommuteTime;
+          scoreBreakdown.push({ 
+            label: `通勤時間（${estimatedTime}分）⚠️希望+${overMinutes}分`, 
+            score: distanceScore 
+          });
+        }
+        
         totalScore += distanceScore;
       } else if (distance !== null) {
         scoreBreakdown.push({ label: '通勤時間（手段未設定）', score: Math.round(SCORE_WEIGHTS.distance / 2) });
