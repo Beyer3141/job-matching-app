@@ -197,6 +197,52 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
+const extractShiftWork = (workTimeText) => {
+  if (!workTimeText || workTimeText.trim() === '') return 'その他';
+  
+  let text = workTimeText;
+  
+  // 研修期間・入社期間の記載を除外（研修後の形態を採用）
+  text = text.replace(/研修.*?は.*?[①②③④⑤⑥].*?日勤/gi, '');
+  text = text.replace(/研修.*?[①②③④⑤⑥].*?日勤/gi, '');
+  text = text.replace(/入社.*?[①②③④⑤⑥].*?日勤/gi, '');
+  text = text.replace(/研修中.*?日勤/gi, '');
+  text = text.replace(/研修時.*?日勤/gi, '');
+  text = text.replace(/研修期間中.*?日勤/gi, '');
+  
+  // 「または」がある場合、より複雑な方（後半）を優先
+  if (text.includes('または')) {
+    const parts = text.split('または');
+    text = parts[parts.length - 1];
+  }
+  
+  // 括弧内の記載を最優先で判定
+  if (/[（(]3交替[）)]/i.test(text)) return '3交替';
+  if (/[（(]2交替[）)]/i.test(text)) return '2交替';
+  if (/[（(]シフト制[）)]/i.test(text)) return 'シフト制';
+  
+  // 「交替制」の場合は時間帯の数で判定
+  if (/[（(]交替制[）)]/i.test(text)) {
+    const slashCount = (text.match(/\//g) || []).length;
+    if (slashCount >= 2) return '3交替';
+    if (slashCount === 1) return '2交替';
+    return '2交替';
+  }
+  
+  if (/[（(]夜勤[）)]/i.test(text)) return '夜勤';
+  if (/[（(]日勤[）)]/i.test(text)) return '日勤';
+  
+  // 括弧がない場合、時間帯の数で判定
+  const slashCount = (text.match(/\//g) || []).length;
+  if (slashCount >= 2) return '3交替';
+  if (slashCount === 1) return '2交替';
+  
+  // 単一の時間帯のみ
+  if (/\d{1,2}[:：]\d{2}/.test(text)) return '日勤';
+  
+  return 'その他';
+};
+
 const estimateCommuteTime = (distanceKm, commuteMethod) => {
   const distancePer30Min = COMMUTE_DISTANCE_PER_30MIN[commuteMethod] || 15;
   return Math.round((distanceKm / distancePer30Min) * 30);
@@ -234,11 +280,36 @@ const geocodeAddress = async (prefecture, city, detail = '') => {
   }
 };
 
-const transformSpreadsheetData = (row, headers) => {
+
+const transformSpreadsheetData = (row, headers, addressMasterMap) => {
   const getVal = (colName) => {
     const idx = headers.indexOf(colName);
     return idx >= 0 && row.c && row.c[idx] ? (row.c[idx].v ?? row.c[idx].f ?? '') : '';
   };
+  
+  const aid = getVal('Aid') || `job-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const company = getVal('派遣会社名(※自動入力)') || '';
+  
+  // ⭐ 勤務形態の取得ロジック（修正） ⭐
+  let shiftWork = '';
+  
+  if (company.includes('DPT')) {
+    // DPTの場合はAM列「シフト」を参照
+    const workTimeText = getVal('シフト');
+    shiftWork = extractShiftWork(workTimeText);
+  } else if (company.includes('日研') || company.includes('NIKKEN')) {
+    // 日研の場合はAP列「勤務時間開始①」を参照
+    const workTimeText = getVal('勤務時間開始①');
+    shiftWork = extractShiftWork(workTimeText);
+  } else {
+    // その他の派遣会社は従来通り「勤務形態」列
+    shiftWork = getVal('勤務形態') || '日勤';
+  }
+  
+  // シフト・勤務時間開始①にも記載がない場合
+  if (!shiftWork || shiftWork === 'その他') {
+    shiftWork = getVal('勤務形態') || 'その他';
+  }
   
   const fee = parseInt(getVal('fee')) || 0;
   const totalSalary = parseInt(getVal('総支給額')) || 0;
@@ -252,7 +323,17 @@ const transformSpreadsheetData = (row, headers) => {
 
   const prefecture = getVal('所在地（都道府県）') || '';
   let addressDetail = getVal('所在地 （市区町村以降）') || '';
-  const company = getVal('派遣会社名(※自動入力)') || '';
+  
+  // ⭐ 緯度経度マスターから住所を取得（追加） ⭐
+  if (addressMasterMap && addressMasterMap.has(aid)) {
+    const masterData = addressMasterMap.get(aid);
+    // マスターの都道府県 + 住所を結合
+    const fullAddressFromMaster = `${masterData.prefecture || ''}${masterData.address || ''}`.trim();
+    if (fullAddressFromMaster) {
+      // マスターに住所がある場合は優先的に使用
+      addressDetail = masterData.address || addressDetail;
+    }
+  }
   
   if (company.includes('綜合キャリア')) {
     const officeAddress = getVal('事業所') || '';
@@ -262,7 +343,7 @@ const transformSpreadsheetData = (row, headers) => {
   }
 
   return {
-    id: getVal('Aid') || `job-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    id: aid,
     name: getVal('案件: 案件名') || '',
     company: company,
     companyRank: getCompanyRank(company),
@@ -284,7 +365,7 @@ const transformSpreadsheetData = (row, headers) => {
     minAge: parseInt(getVal('年齢下限')) || null,
     maxAge: parseInt(getVal('年齢上限')) || null,
     maxClothingSize: getVal('制服サイズ（上限）') || '',
-    shiftWork: getVal('勤務形態') || '日勤',
+    shiftWork: shiftWork, // ⭐ 修正された勤務形態 ⭐
     shift: getVal('シフト') || '',
     workTime1Start: getVal('勤務時間（開始①）') || '',
     workTime1End: getVal('勤務時間（終了①）') || '',
@@ -989,11 +1070,43 @@ const JobMatchingFlowchart = () => {
     setSelectedJobIds(new Set());
   };
 
+  
   const fetchSpreadsheetData = async () => {
     setIsLoading(true);
     setLoadingMessage('スプレッドシートからデータを取得中...');
-
+  
     try {
+      // ⭐ 緯度経度マスターの取得（追加） ⭐
+      setLoadingMessage('緯度経度マスターを読み込み中...');
+      const masterUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?sheet=緯度経度マスター&tqx=out:json`;
+      const masterResponse = await fetch(masterUrl);
+      const masterText = await masterResponse.text();
+      
+      const masterJsonMatch = masterText.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?$/);
+      const addressMasterMap = new Map();
+      
+      if (masterJsonMatch) {
+        const masterData = JSON.parse(masterJsonMatch[1]);
+        const masterRows = masterData.table.rows;
+        
+        // A列: Aid, B列: 都道府県, C列: 住所
+        masterRows.forEach(row => {
+          if (row.c && row.c[0]) {
+            const aid = row.c[0].v || '';
+            const prefecture = row.c[1] ? (row.c[1].v || '') : '';
+            const address = row.c[2] ? (row.c[2].v || '') : '';
+            
+            if (aid) {
+              addressMasterMap.set(aid, { prefecture, address });
+            }
+          }
+        });
+        
+        console.log(`緯度経度マスターから${addressMasterMap.size}件の住所情報を取得しました`);
+      }
+      
+      // 案件一覧の取得
+      setLoadingMessage('案件一覧を読み込み中...');
       const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json`;
       const response = await fetch(url);
       const text = await response.text();
@@ -1005,9 +1118,10 @@ const JobMatchingFlowchart = () => {
       const rows = data.table.rows;
       const headers = data.table.cols.map(col => col.label);
       
-      const transformedJobs = rows.map(row => transformSpreadsheetData(row, headers))
+      // ⭐ addressMasterMapを渡す（修正） ⭐
+      const transformedJobs = rows.map(row => transformSpreadsheetData(row, headers, addressMasterMap))
         .filter(job => job.name && job.status === 'オープン');
-
+  
       setAllJobs(transformedJobs);
       setLastFetchTime(new Date());
       showToast(`${transformedJobs.length}件の案件を取得しました`, 'success');
