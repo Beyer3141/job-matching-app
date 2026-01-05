@@ -818,22 +818,9 @@ const JobDetailModal = ({ job, onClose, seekerConditions }) => {
 const AddressInput = ({ value, onChange, onGeocode, isLoading }) => {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
-  const [isMapReady, setIsMapReady] = useState(false);
+  const [leafletLoaded, setLeafletLoaded] = useState(false);
 
-    // ★ デバッグ: 現在の値を確認
-    console.log('AddressInput render:', {
-      hasLat: !!value.lat,
-      hasLng: !!value.lng,
-      lat: value.lat,
-      lng: value.lng,
-      prefecture: value.prefecture,
-      city: value.city,
-    });
-  
-
-  // Leaflet.jsとCSSを読み込む
   useEffect(() => {
-    // CSSの読み込み
     if (!document.getElementById('leaflet-css')) {
       const link = document.createElement('link');
       link.id = 'leaflet-css';
@@ -842,95 +829,50 @@ const AddressInput = ({ value, onChange, onGeocode, isLoading }) => {
       document.head.appendChild(link);
     }
 
-    // JSの読み込み
-    if (!window.L) {
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      script.onload = () => {
-        console.log('Leaflet loaded successfully');
-        setIsMapReady(true);
-      };
-      script.onerror = () => {
-        console.error('Failed to load Leaflet');
-      };
-      document.body.appendChild(script);
-    } else {
-      setIsMapReady(true);
-    }
-  }, []);
-
-  // 地図を初期化・更新
-  useEffect(() => {
-    if (!isMapReady || !window.L || !value.lat || !value.lng || !mapContainerRef.current) {
+    if (window.L) {
+      setLeafletLoaded(true);
       return;
     }
 
-    console.log('Initializing map with:', value.lat, value.lng);
+    if (!document.getElementById('leaflet-js')) {
+      const script = document.createElement('script');
+      script.id = 'leaflet-js';
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.onload = () => setLeafletLoaded(true);
+      document.body.appendChild(script);
+    }
+  }, []);
 
-    // 既存の地図を削除
+  useEffect(() => {
+    if (!leafletLoaded || !window.L || !mapContainerRef.current) return;
+    if (typeof value.lat !== 'number' || typeof value.lng !== 'number') return;
+
     if (mapInstanceRef.current) {
       mapInstanceRef.current.remove();
-      mapInstanceRef.current = null;
     }
 
-    // 少し遅延させて確実に初期化
-    setTimeout(() => {
-      try {
-        // 地図の作成
-        const map = window.L.map(mapContainerRef.current, {
-          center: [value.lat, value.lng],
-          zoom: 15,
-          scrollWheelZoom: true,
-        });
+    const map = window.L.map(mapContainerRef.current).setView([value.lat, value.lng], 15);
+    
+    window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
 
-        // タイルレイヤーの追加
-        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-          maxZoom: 19,
-        }).addTo(map);
+    const popupText = value.prefecture + value.city + (value.detail ? ' ' + value.detail : '');
+    window.L.marker([value.lat, value.lng])
+      .addTo(map)
+      .bindPopup(popupText)
+      .openPopup();
 
-        // マーカーの追加
-        const marker = window.L.marker([value.lat, value.lng]).addTo(map);
+    mapInstanceRef.current = map;
 
-        // ポップアップの内容
-        const popupContent = `
-          <div style="min-width: 200px;">
-            <strong style="color: #4F46E5;">${value.prefecture}${value.city}</strong><br/>
-            ${value.detail ? `<span style="font-size: 13px;">${value.detail}</span><br/>` : ''}
-            <small style="color: #64748b;">
-              緯度: ${value.lat.toFixed(5)}<br/>
-              経度: ${value.lng.toFixed(5)}
-            </small>
-          </div>
-        `;
-
-        marker.bindPopup(popupContent).openPopup();
-
-        mapInstanceRef.current = map;
-
-        // サイズ調整
-        setTimeout(() => {
-          map.invalidateSize();
-        }, 100);
-
-        console.log('Map initialized successfully');
-      } catch (error) {
-        console.error('Error initializing map:', error);
-      }
-    }, 100);
-
-    // クリーンアップ
     return () => {
       if (mapInstanceRef.current) {
-        try {
-          mapInstanceRef.current.remove();
-        } catch (e) {
-          console.error('Error removing map:', e);
-        }
-        mapInstanceRef.current = null;
+        mapInstanceRef.current.remove();
       }
     };
-  }, [isMapReady, value.lat, value.lng, value.prefecture, value.city, value.detail]);
+  }, [leafletLoaded, value.lat, value.lng, value.prefecture, value.city, value.detail]);
+
+  const shouldShowMap = typeof value.lat === 'number' && typeof value.lng === 'number';
 
   return (
     <div className="space-y-3">
@@ -948,7 +890,9 @@ const AddressInput = ({ value, onChange, onGeocode, isLoading }) => {
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
           >
             <option value="">選択してください</option>
-            {PREFECTURES.map(pref => <option key={pref} value={pref}>{pref}</option>)}
+            {PREFECTURES.map(pref => (
+              <option key={pref} value={pref}>{pref}</option>
+            ))}
           </select>
         </div>
         <div>
@@ -977,75 +921,72 @@ const AddressInput = ({ value, onChange, onGeocode, isLoading }) => {
         <button
           onClick={onGeocode}
           disabled={!value.prefecture || !value.city || isLoading}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+          className={
             !value.prefecture || !value.city || isLoading
-              ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-              : 'bg-indigo-600 text-white hover:bg-indigo-700'
-          }`}
+              ? 'flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all bg-gray-200 text-gray-400 cursor-not-allowed'
+              : 'flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all bg-indigo-600 text-white hover:bg-indigo-700'
+          }
         >
-          {isLoading ? <><Loader className="animate-spin" size={16} />変換中...</> : <><Navigation size={16} />位置を取得</>}
+          {isLoading ? (
+            <React.Fragment>
+              <Loader className="animate-spin" size={16} />
+              変換中...
+            </React.Fragment>
+          ) : (
+            <React.Fragment>
+              <Navigation size={16} />
+              位置を取得
+            </React.Fragment>
+          )}
         </button>
-        {value.lat && value.lng && (
+        {shouldShowMap && (
           <div className="flex items-center gap-2 text-sm text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg">
             <Check size={16} />
-            <span>位置取得済み{value.accuracy === 'approximate' && <span className="text-amber-600 ml-1">（概算）</span>}</span>
+            <span>
+              位置取得済み
+              {value.accuracy === 'approximate' && (
+                <span className="text-amber-600 ml-1">（概算）</span>
+              )}
+            </span>
           </div>
         )}
       </div>
 
-      {/* 地図表示エリア */}
-      {value.lat && value.lng && (
-        <div className="mt-4 border-2 border-indigo-200 rounded-xl overflow-hidden bg-white shadow-lg">
-          <div className="bg-indigo-50 px-4 py-2 border-b border-indigo-200 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <MapPin className="text-indigo-600" size={18} />
-              <span className="font-semibold text-indigo-800 text-sm">📍 取得した位置</span>
-            </div>
-            
-              href={`https://www.openstreetmap.org/?mlat=${value.lat}&mlon=${value.lng}&zoom=15`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 hover:underline transition"
-            >
-              <ExternalLink size={14} />
-              OpenStreetMapで開く
-            </a>
-          </div>
-          
-          {/* 地図コンテナ */}
-          <div 
-            ref={mapContainerRef}
-            style={{ 
-              width: '100%', 
-              height: '400px',
-              position: 'relative',
-              zIndex: 0
-            }}
-          >
-            {!isMapReady && (
-              <div className="absolute inset-0 flex items-center justify-center bg-slate-100">
-                <div className="text-center">
-                  <Loader className="animate-spin mx-auto mb-2 text-indigo-600" size={32} />
-                  <p className="text-sm text-slate-600">地図を読み込み中...</p>
-                </div>
-              </div>
-            )}
-          </div>
-          
-          <div className="px-4 py-3 bg-slate-50 text-xs text-slate-600 border-t border-slate-200">
-            <div className="flex items-center justify-between">
-              <span className="font-mono">📍 {value.lat.toFixed(6)}, {value.lng.toFixed(6)}</span>
-              <span className="text-slate-500">
-                {value.prefecture}{value.city}{value.detail}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
+      {shouldShowMap && (
+  <div className="mt-4 border-2 border-indigo-200 rounded-xl overflow-hidden bg-white shadow-lg">
+    <div className="bg-indigo-50 px-4 py-2 border-b border-indigo-200 flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <MapPin className="text-indigo-600" size={18} />
+        <span className="font-semibold text-indigo-800 text-sm">取得した位置</span>
+      </div>
+      
+      <a
+        href={'https://www.openstreetmap.org/?mlat=' + value.lat + '&mlon=' + value.lng + '&zoom=15'}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 hover:underline transition"
+      >
+        <ExternalLink size={14} />
+        OpenStreetMapで開く
+      </a>
+    </div>
+    
+    <div 
+      ref={mapContainerRef}
+      style={{ width: '100%', height: '400px', background: '#f1f5f9' }}
+    />
+    
+    <div className="px-4 py-3 bg-slate-50 text-xs text-slate-600 border-t border-slate-200">
+      <div className="flex items-center justify-between">
+        <span className="font-mono">{value.lat.toFixed(6) + ', ' + value.lng.toFixed(6)}</span>
+        <span className="text-slate-500">{value.prefecture + value.city + value.detail}</span>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 };
-
 // =====================================
 // メインコンポーネント
 // =====================================
