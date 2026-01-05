@@ -820,6 +820,17 @@ const AddressInput = ({ value, onChange, onGeocode, isLoading }) => {
   const mapInstanceRef = useRef(null);
   const [isMapReady, setIsMapReady] = useState(false);
 
+    // ★ デバッグ: 現在の値を確認
+    console.log('AddressInput render:', {
+      hasLat: !!value.lat,
+      hasLng: !!value.lng,
+      lat: value.lat,
+      lng: value.lng,
+      prefecture: value.prefecture,
+      city: value.city,
+    });
+  
+
   // Leaflet.jsとCSSを読み込む
   useEffect(() => {
     // CSSの読み込み
