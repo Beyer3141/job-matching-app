@@ -816,117 +816,110 @@ const JobDetailModal = ({ job, onClose, seekerConditions }) => {
 };
 
 const AddressInput = ({ value, onChange, onGeocode, isLoading }) => {
-  const mapRef = useRef(null);
+  const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
-  const markerRef = useRef(null);
-  const [mapLoaded, setMapLoaded] = useState(false);
+  const [isMapReady, setIsMapReady] = useState(false);
 
-  // Leafletのスタイルとスクリプトを読み込む
+  // Leaflet.jsとCSSを読み込む
   useEffect(() => {
+    // CSSの読み込み
     if (!document.getElementById('leaflet-css')) {
-      const css = document.createElement('link');
-      css.id = 'leaflet-css';
-      css.rel = 'stylesheet';
-      css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      css.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
-      css.crossOrigin = '';
-      document.head.appendChild(css);
+      const link = document.createElement('link');
+      link.id = 'leaflet-css';
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
     }
 
-    if (!window.L && !document.getElementById('leaflet-js')) {
+    // JSの読み込み
+    if (!window.L) {
       const script = document.createElement('script');
-      script.id = 'leaflet-js';
       script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
-      script.crossOrigin = '';
-      script.async = true;
-      script.onload = () => setMapLoaded(true);
+      script.onload = () => {
+        console.log('Leaflet loaded successfully');
+        setIsMapReady(true);
+      };
+      script.onerror = () => {
+        console.error('Failed to load Leaflet');
+      };
       document.body.appendChild(script);
-    } else if (window.L) {
-      setMapLoaded(true);
+    } else {
+      setIsMapReady(true);
     }
   }, []);
 
-  // 地図を初期化
+  // 地図を初期化・更新
   useEffect(() => {
-    if (!mapLoaded || !value.lat || !value.lng || !mapRef.current || !window.L) return;
+    if (!isMapReady || !window.L || !value.lat || !value.lng || !mapContainerRef.current) {
+      return;
+    }
 
-    // 既存の地図があれば削除
+    console.log('Initializing map with:', value.lat, value.lng);
+
+    // 既存の地図を削除
     if (mapInstanceRef.current) {
       mapInstanceRef.current.remove();
       mapInstanceRef.current = null;
     }
 
-    // 地図を作成
-    const map = window.L.map(mapRef.current).setView([value.lat, value.lng], 15);
+    // 少し遅延させて確実に初期化
+    setTimeout(() => {
+      try {
+        // 地図の作成
+        const map = window.L.map(mapContainerRef.current, {
+          center: [value.lat, value.lng],
+          zoom: 15,
+          scrollWheelZoom: true,
+        });
 
-    // OpenStreetMapのタイルレイヤーを追加
-    window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      maxZoom: 19,
-    }).addTo(map);
+        // タイルレイヤーの追加
+        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          maxZoom: 19,
+        }).addTo(map);
 
-    // カスタムアイコンを作成（オプション）
-    const customIcon = window.L.divIcon({
-      className: 'custom-marker',
-      html: `
-        <div style="
-          background-color: #4F46E5;
-          width: 32px;
-          height: 32px;
-          border-radius: 50% 50% 50% 0;
-          transform: rotate(-45deg);
-          border: 3px solid white;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        ">
-          <div style="
-            width: 12px;
-            height: 12px;
-            background-color: white;
-            border-radius: 50%;
-            transform: rotate(45deg);
-          "></div>
-        </div>
-      `,
-      iconSize: [32, 32],
-      iconAnchor: [16, 32],
-      popupAnchor: [0, -32],
-    });
+        // マーカーの追加
+        const marker = window.L.marker([value.lat, value.lng]).addTo(map);
 
-    // マーカーを追加
-    const marker = window.L.marker([value.lat, value.lng], { icon: customIcon }).addTo(map);
+        // ポップアップの内容
+        const popupContent = `
+          <div style="min-width: 200px;">
+            <strong style="color: #4F46E5;">${value.prefecture}${value.city}</strong><br/>
+            ${value.detail ? `<span style="font-size: 13px;">${value.detail}</span><br/>` : ''}
+            <small style="color: #64748b;">
+              緯度: ${value.lat.toFixed(5)}<br/>
+              経度: ${value.lng.toFixed(5)}
+            </small>
+          </div>
+        `;
 
-    // ポップアップを追加
-    const popupContent = `
-      <div style="font-family: system-ui, -apple-system, sans-serif; padding: 4px;">
-        <div style="font-weight: bold; color: #4F46E5; margin-bottom: 4px;">
-          ${value.prefecture}${value.city}
-        </div>
-        <div style="font-size: 12px; color: #64748b; margin-bottom: 6px;">
-          ${value.detail || ''}
-        </div>
-        <div style="font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 4px;">
-          📍 ${value.lat.toFixed(6)}, ${value.lng.toFixed(6)}
-        </div>
-      </div>
-    `;
+        marker.bindPopup(popupContent).openPopup();
 
-    marker.bindPopup(popupContent).openPopup();
+        mapInstanceRef.current = map;
 
-    mapInstanceRef.current = map;
-    markerRef.current = marker;
+        // サイズ調整
+        setTimeout(() => {
+          map.invalidateSize();
+        }, 100);
+
+        console.log('Map initialized successfully');
+      } catch (error) {
+        console.error('Error initializing map:', error);
+      }
+    }, 100);
 
     // クリーンアップ
     return () => {
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
+        try {
+          mapInstanceRef.current.remove();
+        } catch (e) {
+          console.error('Error removing map:', e);
+        }
         mapInstanceRef.current = null;
       }
     };
-  }, [mapLoaded, value.lat, value.lng, value.prefecture, value.city, value.detail]);
+  }, [isMapReady, value.lat, value.lng, value.prefecture, value.city, value.detail]);
 
   return (
     <div className="space-y-3">
@@ -989,35 +982,48 @@ const AddressInput = ({ value, onChange, onGeocode, isLoading }) => {
         )}
       </div>
 
-      {/* OpenStreetMap表示エリア */}
+      {/* 地図表示エリア */}
       {value.lat && value.lng && (
-        <div className="mt-4 border-2 border-indigo-200 rounded-xl overflow-hidden bg-white shadow-sm">
+        <div className="mt-4 border-2 border-indigo-200 rounded-xl overflow-hidden bg-white shadow-lg">
           <div className="bg-indigo-50 px-4 py-2 border-b border-indigo-200 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <MapPin className="text-indigo-600" size={18} />
-              <span className="font-semibold text-indigo-800 text-sm">取得した位置</span>
+              <span className="font-semibold text-indigo-800 text-sm">📍 取得した位置</span>
             </div>
             
               href={`https://www.openstreetmap.org/?mlat=${value.lat}&mlon=${value.lng}&zoom=15`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 hover:underline"
-            
+              className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 hover:underline transition"
+            >
               <ExternalLink size={14} />
               OpenStreetMapで開く
             </a>
           </div>
           
-          {/* 地図表示エリア */}
+          {/* 地図コンテナ */}
           <div 
-            ref={mapRef} 
-            style={{ width: '100%', height: '350px' }}
-            className="bg-slate-100"
-          />
+            ref={mapContainerRef}
+            style={{ 
+              width: '100%', 
+              height: '400px',
+              position: 'relative',
+              zIndex: 0
+            }}
+          >
+            {!isMapReady && (
+              <div className="absolute inset-0 flex items-center justify-center bg-slate-100">
+                <div className="text-center">
+                  <Loader className="animate-spin mx-auto mb-2 text-indigo-600" size={32} />
+                  <p className="text-sm text-slate-600">地図を読み込み中...</p>
+                </div>
+              </div>
+            )}
+          </div>
           
-          <div className="px-4 py-2 bg-slate-50 text-xs text-slate-600 border-t border-slate-200">
+          <div className="px-4 py-3 bg-slate-50 text-xs text-slate-600 border-t border-slate-200">
             <div className="flex items-center justify-between">
-              <span>📍 緯度: {value.lat.toFixed(6)}, 経度: {value.lng.toFixed(6)}</span>
+              <span className="font-mono">📍 {value.lat.toFixed(6)}, {value.lng.toFixed(6)}</span>
               <span className="text-slate-500">
                 {value.prefecture}{value.city}{value.detail}
               </span>
