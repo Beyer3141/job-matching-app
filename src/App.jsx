@@ -889,7 +889,7 @@ const AddressInput = ({ value, onChange, onGeocode, isLoading }) => (
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 hover:underline"
-          >
+          
             <ExternalLink size={14} />
             Google Mapsで開く
           </a>
