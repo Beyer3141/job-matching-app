@@ -846,31 +846,42 @@ const AddressInput = ({ value, onChange, onGeocode, isLoading }) => {
   useEffect(() => {
     if (!leafletLoaded || !window.L || !mapContainerRef.current) return;
     if (typeof value.lat !== 'number' || typeof value.lng !== 'number') return;
-
+  
     if (mapInstanceRef.current) {
       mapInstanceRef.current.remove();
+      mapInstanceRef.current = null;
     }
-
-    const map = window.L.map(mapContainerRef.current).setView([value.lat, value.lng], 15);
-    
-    window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
-
-    const popupText = value.prefecture + value.city + (value.detail ? ' ' + value.detail : '');
-    window.L.marker([value.lat, value.lng])
-      .addTo(map)
-      .bindPopup(popupText)
-      .openPopup();
-
-    mapInstanceRef.current = map;
-
+  
+    // 少し遅延させて確実に初期化
+    setTimeout(() => {
+      if (!mapContainerRef.current) return;
+      
+      const map = window.L.map(mapContainerRef.current).setView([value.lat, value.lng], 15);
+      
+      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+  
+      const popupText = value.prefecture + value.city + (value.detail ? ' ' + value.detail : '');
+      window.L.marker([value.lat, value.lng])
+        .addTo(map)
+        .bindPopup(popupText)
+        .openPopup();
+  
+      mapInstanceRef.current = map;
+    }, 100);
+  
     return () => {
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
+        try {
+          mapInstanceRef.current.remove();
+        } catch (e) {
+          console.error('Map cleanup error:', e);
+        }
+        mapInstanceRef.current = null;
       }
     };
-  }, [leafletLoaded, value.lat, value.lng, value.prefecture, value.city, value.detail]);
+  }, [leafletLoaded, value.lat, value.lng]); // ← prefecture, city, detailを削除
 
   const shouldShowMap = typeof value.lat === 'number' && typeof value.lng === 'number';
 
