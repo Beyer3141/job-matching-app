@@ -875,6 +875,50 @@ const AddressInput = ({ value, onChange, onGeocode, isLoading }) => (
         </div>
       )}
     </div>
+
+    {/* 地図表示エリア */}
+    {value.lat && value.lng && (
+      <div className="mt-4 border-2 border-indigo-200 rounded-xl overflow-hidden bg-white shadow-sm">
+        <div className="bg-indigo-50 px-4 py-2 border-b border-indigo-200 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MapPin className="text-indigo-600" size={18} />
+            <span className="font-semibold text-indigo-800 text-sm">取得した位置</span>
+          </div>
+          
+            href={`https://www.google.com/maps?q=${value.lat},${value.lng}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 hover:underline"
+          >
+            <ExternalLink size={14} />
+            Google Mapsで開く
+          </a>
+        </div>
+        
+        {/* Google Maps埋め込み */}
+        <div className="relative" style={{ height: '300px' }}>
+          <iframe
+            src={`https://www.google.com/maps?q=${value.lat},${value.lng}&z=15&output=embed`}
+            width="100%"
+            height="100%"
+            style={{ border: 0 }}
+            allowFullScreen
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            title="取得した位置の地図"
+          />
+        </div>
+        
+        <div className="px-4 py-2 bg-slate-50 text-xs text-slate-600 border-t border-slate-200">
+          <div className="flex items-center justify-between">
+            <span>📍 緯度: {value.lat.toFixed(6)}, 経度: {value.lng.toFixed(6)}</span>
+            <span className="text-slate-500">
+              {value.prefecture}{value.city}{value.detail}
+            </span>
+          </div>
+        </div>
+      </div>
+    )}
   </div>
 );
 
