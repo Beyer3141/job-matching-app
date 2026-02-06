@@ -397,22 +397,64 @@ const transformSpreadsheetData = (row, headers, addressMasterMap) => {
 
 const useGoogleMaps = () => {
   const [isLoaded, setIsLoaded] = useState(false);
+  const [error, setError] = useState(null);
   
   useEffect(() => {
-    if (window.google?.maps) {
+    // 既に読み込まれているかチェック
+    if (window.google?.maps?.Map) {
       setIsLoaded(true);
       return;
     }
     
+    // 既にスクリプトが追加されているかチェック
+    if (document.querySelector('script[src*="maps.googleapis.com"]')) {
+      // スクリプトは存在するが、まだ読み込み中
+      const checkLoaded = setInterval(() => {
+        if (window.google?.maps?.Map) {
+          setIsLoaded(true);
+          clearInterval(checkLoaded);
+        }
+      }, 100);
+      
+      return () => clearInterval(checkLoaded);
+    }
+    
+    // 新しくスクリプトを追加
     const script = document.createElement('script');
-    // ⚠️ ここにあなたのGoogle Maps APIキーを入れてください
-    script.src = `https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY_HERE&libraries=geometry`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyCQ2AII3z1Sarpf2--hegfBObBKlZmV9uY&libraries=geometry&loading=async`;
     script.async = true;
-    script.onload = () => setIsLoaded(true);
+    script.defer = true;
+    
+    script.onload = () => {
+      // API読み込み後、google.maps.Mapが利用可能になるまで待つ
+      const checkReady = setInterval(() => {
+        if (window.google?.maps?.Map) {
+          setIsLoaded(true);
+          clearInterval(checkReady);
+        }
+      }, 50);
+      
+      // タイムアウト設定（10秒）
+      setTimeout(() => {
+        clearInterval(checkReady);
+        if (!window.google?.maps?.Map) {
+          setError('Google Maps APIの読み込みがタイムアウトしました');
+        }
+      }, 10000);
+    };
+    
+    script.onerror = () => {
+      setError('Google Maps APIの読み込みに失敗しました');
+    };
+    
     document.head.appendChild(script);
+    
+    return () => {
+      // クリーンアップ時にスクリプトは残す（他のコンポーネントが使う可能性があるため）
+    };
   }, []);
   
-  return isLoaded;
+  return { isLoaded, error };
 };
 
 const findNearbyJobs = (centerJob, allJobs, seekerLocation, maxDistanceKm = 10) => {
@@ -757,10 +799,22 @@ const JobMapView = ({ selectedJob, nearbyJobs, seekerLocation, onJobClick }) => 
 
 const AllJobsMapView = ({ jobs, seekerLocation, onJobClick }) => {
   const mapRef = useRef(null);
-  const isGoogleMapsLoaded = useGoogleMaps();
+  const mapInstanceRef = useRef(null);
+  const { isLoaded, error } = useGoogleMaps();
 
   useEffect(() => {
-    if (!isGoogleMapsLoaded || !mapRef.current || jobs.length === 0) return;
+    if (!isLoaded || error || !mapRef.current || jobs.length === 0) return;
+
+    // 既存のマップインスタンスをクリーンアップ
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current = null;
+    }
+
+    // Google Maps APIが完全に利用可能か確認
+    if (!window.google?.maps?.Map) {
+      console.error('Google Maps API is not fully loaded');
+      return;
+    }
 
     // 中心位置を計算（自宅 or 案件の中心）
     let centerLat, centerLng, zoom;
@@ -778,92 +832,111 @@ const AllJobsMapView = ({ jobs, seekerLocation, onJobClick }) => {
       zoom = 9;
     }
 
-    const googleMap = new window.google.maps.Map(mapRef.current, {
-      center: { lat: centerLat, lng: centerLng },
-      zoom: zoom,
-      mapTypeControl: true,
-      streetViewControl: false,
-    });
-
-    // 自宅マーカー
-    if (seekerLocation?.lat && seekerLocation?.lng) {
-      const homeMarker = new window.google.maps.Marker({
-        position: { lat: seekerLocation.lat, lng: seekerLocation.lng },
-        map: googleMap,
-        icon: {
-          url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
-          scaledSize: new window.google.maps.Size(45, 45),
-        },
-        title: '自宅',
-        zIndex: 9999,
+    try {
+      const googleMap = new window.google.maps.Map(mapRef.current, {
+        center: { lat: centerLat, lng: centerLng },
+        zoom: zoom,
+        mapTypeControl: true,
+        streetViewControl: false,
       });
 
-      const homeInfoWindow = new window.google.maps.InfoWindow({
-        content: `
-          <div style="padding: 8px;">
-            <h3 style="margin: 0; color: #059669; font-weight: bold;">🏠 あなたの自宅</h3>
-            <p style="margin: 4px 0; font-size: 12px;">${seekerLocation.prefecture || ''}${seekerLocation.city || ''}</p>
-          </div>
-        `
-      });
+      mapInstanceRef.current = googleMap;
 
-      homeMarker.addListener('click', () => {
-        homeInfoWindow.open(googleMap, homeMarker);
-      });
-    }
+      // 自宅マーカー
+      if (seekerLocation?.lat && seekerLocation?.lng) {
+        const homeMarker = new window.google.maps.Marker({
+          position: { lat: seekerLocation.lat, lng: seekerLocation.lng },
+          map: googleMap,
+          icon: {
+            url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
+            scaledSize: new window.google.maps.Size(45, 45),
+          },
+          title: '自宅',
+          zIndex: 9999,
+        });
 
-    // 案件マーカー
-    jobs.forEach(job => {
-      if (!job.lat || !job.lng) return;
+        const homeInfoWindow = new window.google.maps.InfoWindow({
+          content: `
+            <div style="padding: 8px;">
+              <h3 style="margin: 0; color: #059669; font-weight: bold;">🏠 あなたの自宅</h3>
+              <p style="margin: 4px 0; font-size: 12px;">${seekerLocation.prefecture || ''}${seekerLocation.city || ''}</p>
+            </div>
+          `
+        });
 
-      // Feeに応じて色分け
-      let iconUrl = 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png';
-      if (job.fee >= 40) {
-        iconUrl = 'http://maps.google.com/mapfiles/ms/icons/yellow-dot.png'; // 高額
-      } else if (job.fee >= 30) {
-        iconUrl = 'http://maps.google.com/mapfiles/ms/icons/orange-dot.png';
+        homeMarker.addListener('click', () => {
+          homeInfoWindow.open(googleMap, homeMarker);
+        });
       }
 
-      const marker = new window.google.maps.Marker({
-        position: { lat: job.lat, lng: job.lng },
-        map: googleMap,
-        icon: {
-          url: iconUrl,
-          scaledSize: new window.google.maps.Size(32, 32),
-        },
-        title: job.name,
-        label: {
-          text: `${job.fee}万`,
-          color: 'white',
-          fontSize: '10px',
-          fontWeight: 'bold',
-        },
-      });
+      // 案件マーカー
+      jobs.forEach(job => {
+        if (!job.lat || !job.lng) return;
 
-      const infoWindow = new window.google.maps.InfoWindow({
-        content: `
-          <div style="padding: 8px; max-width: 250px;">
-            <p style="margin: 0 0 4px 0; font-weight: bold; font-size: 13px;">${job.name}</p>
-            <p style="margin: 4px 0; font-size: 11px; color: #64748B;">${job.company}</p>
-            <div style="margin: 8px 0; padding: 6px; background: #F1F5F9; border-radius: 4px;">
-              <p style="margin: 2px 0; font-size: 12px;"><strong>💰 Fee: ${job.fee}万円</strong></p>
-              <p style="margin: 2px 0; font-size: 11px;">月収: ${job.monthlySalary}万円</p>
-              <p style="margin: 2px 0; font-size: 11px;">欠員: ${(job.vacancy || 0) + (job.nextMonthVacancy || 0)}名</p>
-              <p style="margin: 2px 0; font-size: 11px;">${job.shiftWork || '-'}</p>
-              ${job.estimatedTime ? `<p style="margin: 2px 0; font-size: 11px; color: #6366F1;">🚗 約${job.estimatedTime}分 (${job.distance?.toFixed(1)}km)</p>` : ''}
+        // Feeに応じて色分け
+        let iconUrl = 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png';
+        if (job.fee >= 40) {
+          iconUrl = 'http://maps.google.com/mapfiles/ms/icons/yellow-dot.png'; // 高額
+        } else if (job.fee >= 30) {
+          iconUrl = 'http://maps.google.com/mapfiles/ms/icons/orange-dot.png';
+        }
+
+        const marker = new window.google.maps.Marker({
+          position: { lat: job.lat, lng: job.lng },
+          map: googleMap,
+          icon: {
+            url: iconUrl,
+            scaledSize: new window.google.maps.Size(32, 32),
+          },
+          title: job.name,
+          label: {
+            text: `${job.fee}万`,
+            color: 'white',
+            fontSize: '10px',
+            fontWeight: 'bold',
+          },
+        });
+
+        const infoWindow = new window.google.maps.InfoWindow({
+          content: `
+            <div style="padding: 8px; max-width: 250px;">
+              <p style="margin: 0 0 4px 0; font-weight: bold; font-size: 13px;">${job.name}</p>
+              <p style="margin: 4px 0; font-size: 11px; color: #64748B;">${job.company}</p>
+              <div style="margin: 8px 0; padding: 6px; background: #F1F5F9; border-radius: 4px;">
+                <p style="margin: 2px 0; font-size: 12px;"><strong>💰 Fee: ${job.fee}万円</strong></p>
+                <p style="margin: 2px 0; font-size: 11px;">月収: ${job.monthlySalary}万円</p>
+                <p style="margin: 2px 0; font-size: 11px;">欠員: ${(job.vacancy || 0) + (job.nextMonthVacancy || 0)}名</p>
+                <p style="margin: 2px 0; font-size: 11px;">${job.shiftWork || '-'}</p>
+                ${job.estimatedTime ? `<p style="margin: 2px 0; font-size: 11px; color: #6366F1;">🚗 約${job.estimatedTime}分 (${job.distance?.toFixed(1)}km)</p>` : ''}
+              </div>
             </div>
-          </div>
-        `
+          `
+        });
+
+        marker.addListener('click', () => {
+          infoWindow.open(googleMap, marker);
+        });
       });
 
-      marker.addListener('click', () => {
-        infoWindow.open(googleMap, marker);
-      });
-    });
+    } catch (err) {
+      console.error('Map initialization error:', err);
+    }
 
-  }, [isGoogleMapsLoaded, jobs, seekerLocation]);
+  }, [isLoaded, error, jobs, seekerLocation]);
 
-  if (!isGoogleMapsLoaded) {
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-[600px] bg-red-50 rounded-lg border-2 border-red-200">
+        <div className="text-center">
+          <AlertCircle className="mx-auto mb-3 text-red-500" size={48} />
+          <p className="text-red-700 font-medium">{error}</p>
+          <p className="text-red-600 text-sm mt-2">APIキーを確認してください</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isLoaded) {
     return (
       <div className="flex items-center justify-center h-[600px] bg-slate-50 rounded-lg">
         <div className="text-center">
