@@ -1758,8 +1758,8 @@ const JobMatchingFlowchart = () => {
       const masterJsonMatch = masterText.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?$/);
       console.log('✅ Step 1: 正規表現マッチ結果', !!masterJsonMatch);
       
-      const addressMasterMap = {}; // 普通のオブジェクトを使用
-      console.log('✅ Step 1: Map作成完了', addressMasterMap instanceof Map);
+      const addressMasterMap = {};
+console.log('✅ Step 1: オブジェクト作成完了', typeof addressMasterMap === 'object');
       
       if (masterJsonMatch) {
         console.log('🔍 Step 2: マスターJSON解析開始');
