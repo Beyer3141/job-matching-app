@@ -312,8 +312,8 @@ const transformSpreadsheetData = (row, headers, addressMasterMap) => {
   const prefecture = getVal('所在地（都道府県）') || '';
   let addressDetail = getVal('所在地 （市区町村以降）') || '';
   
-  if (addressMasterMap && addressMasterMap.has(aid)) {
-    const masterData = addressMasterMap.get(aid);
+  if (addressMasterMap && addressMasterMap[aid]) {
+    const masterData = addressMasterMap[aid];
     const fullAddressFromMaster = `${masterData.prefecture || ''}${masterData.address || ''}`.trim();
     if (fullAddressFromMaster) {
       addressDetail = masterData.address || addressDetail;
@@ -1758,7 +1758,7 @@ const JobMatchingFlowchart = () => {
       const masterJsonMatch = masterText.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?$/);
       console.log('✅ Step 1: 正規表現マッチ結果', !!masterJsonMatch);
       
-      const addressMasterMap = new Map();
+      const addressMasterMap = {}; // 普通のオブジェクトを使用
       console.log('✅ Step 1: Map作成完了', addressMasterMap instanceof Map);
       
       if (masterJsonMatch) {
@@ -1776,7 +1776,7 @@ const JobMatchingFlowchart = () => {
             const address = row.c[2] ? (row.c[2].v || '') : '';
             
             if (aid) {
-              addressMasterMap.set(aid, { prefecture, address });
+              addressMasterMap[aid] = { prefecture, address };
             }
           }
         });
