@@ -1746,19 +1746,30 @@ const JobMatchingFlowchart = () => {
     setLoadingMessage('スプレッドシートからデータを取得中...');
   
     try {
+      console.log('🔍 Step 1: 緯度経度マスター取得開始');
       setLoadingMessage('緯度経度マスターを読み込み中...');
       const masterUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?sheet=緯度経度マスター&tqx=out:json`;
       const masterResponse = await fetch(masterUrl);
+      console.log('✅ Step 1: マスターレスポンス取得完了', masterResponse.ok);
+      
       const masterText = await masterResponse.text();
+      console.log('✅ Step 1: マスターテキスト取得完了', masterText.substring(0, 100));
       
       const masterJsonMatch = masterText.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?$/);
+      console.log('✅ Step 1: 正規表現マッチ結果', !!masterJsonMatch);
+      
       const addressMasterMap = new Map();
+      console.log('✅ Step 1: Map作成完了', addressMasterMap instanceof Map);
       
       if (masterJsonMatch) {
+        console.log('🔍 Step 2: マスターJSON解析開始');
         const masterData = JSON.parse(masterJsonMatch[1]);
-        const masterRows = masterData.table.rows;
+        console.log('✅ Step 2: JSON解析完了', masterData);
         
-        masterRows.forEach(row => {
+        const masterRows = masterData.table.rows;
+        console.log('✅ Step 2: 行数', masterRows.length);
+        
+        masterRows.forEach((row, index) => {
           if (row.c && row.c[0]) {
             const aid = row.c[0].v || '';
             const prefecture = row.c[1] ? (row.c[1].v || '') : '';
@@ -1770,30 +1781,50 @@ const JobMatchingFlowchart = () => {
           }
         });
         
-        console.log(`緯度経度マスターから${addressMasterMap.size}件の住所情報を取得しました`);
+        console.log(`✅ Step 2: マスター登録完了 ${addressMasterMap.size}件`);
       }
       
+      console.log('🔍 Step 3: 案件一覧取得開始');
       setLoadingMessage('案件一覧を読み込み中...');
       const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json`;
       const response = await fetch(url);
+      console.log('✅ Step 3: 案件レスポンス取得完了', response.ok);
+      
       const text = await response.text();
+      console.log('✅ Step 3: 案件テキスト取得完了', text.substring(0, 100));
       
       const jsonMatch = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?$/);
+      console.log('✅ Step 3: 正規表現マッチ結果', !!jsonMatch);
+      
       if (!jsonMatch) throw new Error('データの解析に失敗しました');
       
+      console.log('🔍 Step 4: JSON解析開始');
       const data = JSON.parse(jsonMatch[1]);
+      console.log('✅ Step 4: JSON解析完了');
+      
       const rows = data.table.rows;
       const headers = data.table.cols.map(col => col.label);
+      console.log('✅ Step 4: 行数/列数', rows.length, headers.length);
       
-      const transformedJobs = rows.map(row => transformSpreadsheetData(row, headers, addressMasterMap))
-        .filter(job => job.name && job.status === 'オープン');
+      console.log('🔍 Step 5: データ変換開始');
+      const transformedJobs = rows.map((row, index) => {
+        try {
+          return transformSpreadsheetData(row, headers, addressMasterMap);
+        } catch (err) {
+          console.error(`❌ 行${index}の変換エラー:`, err, row);
+          throw err;
+        }
+      }).filter(job => job.name && job.status === 'オープン');
+      
+      console.log('✅ Step 5: 変換完了', transformedJobs.length);
   
       setAllJobs(transformedJobs);
       setLastFetchTime(new Date());
       showToast(`${transformedJobs.length}件の案件を取得しました`, 'success');
       if (mainStep === 0) setMainStep(1);
     } catch (error) {
-      console.error('Fetch error:', error);
+      console.error('❌ Fetch error:', error);
+      console.error('❌ Error stack:', error.stack);
       showToast('データの取得に失敗しました: ' + error.message, 'error');
     } finally {
       setIsLoading(false);
