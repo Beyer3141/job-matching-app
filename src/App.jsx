@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Edit2, Save, X, Download, CheckCircle, Heart, History, Phone, ChevronDown, ChevronRight, User, Target, ZoomIn, ZoomOut, Maximize2, AlertCircle, Check, Loader, XCircle, MinusCircle, MapPin, Building, RefreshCw, Search, Filter, AlertTriangle, Info, Clock, DollarSign, Users, Briefcase, Database, Navigation, Eye, ExternalLink, CheckSquare, Square, ArrowUpDown, TrendingUp, TrendingDown, Settings, BarChart3, Sparkles, Award, Zap, ChevronUp, Sliders, List } from 'lucide-react';
+import { Plus, Trash2, Edit2, Save, X, Download, CheckCircle, Heart, History, Phone, ChevronDown, ChevronRight, User, Target, ZoomIn, ZoomOut, Maximize2, AlertCircle, Check, Loader, XCircle, MinusCircle, MapPin, Building, RefreshCw, Search, Filter, AlertTriangle, Info, Clock, DollarSign, Users, Briefcase, Database, Navigation, Eye, ExternalLink, CheckSquare, Square, ArrowUpDown, TrendingUp, TrendingDown, Settings, BarChart3, Sparkles, Award, Zap, ChevronUp, Sliders, List, Map } from 'lucide-react';
 
 // =====================================
 // Material Design 3 デザインシステム
@@ -202,7 +202,6 @@ const extractShiftWork = (workTimeText) => {
   
   let text = workTimeText;
   
-  // 研修期間・入社期間の記載を除外（研修後の形態を採用）
   text = text.replace(/研修.*?は.*?[①②③④⑤⑥].*?日勤/gi, '');
   text = text.replace(/研修.*?[①②③④⑤⑥].*?日勤/gi, '');
   text = text.replace(/入社.*?[①②③④⑤⑥].*?日勤/gi, '');
@@ -210,18 +209,15 @@ const extractShiftWork = (workTimeText) => {
   text = text.replace(/研修時.*?日勤/gi, '');
   text = text.replace(/研修期間中.*?日勤/gi, '');
   
-  // 「または」がある場合、より複雑な方（後半）を優先
   if (text.includes('または')) {
     const parts = text.split('または');
     text = parts[parts.length - 1];
   }
   
-  // 括弧内の記載を最優先で判定
   if (/[（(]3交替[）)]/i.test(text)) return '3交替';
   if (/[（(]2交替[）)]/i.test(text)) return '2交替';
   if (/[（(]シフト制[）)]/i.test(text)) return 'シフト制';
   
-  // 「交替制」の場合は時間帯の数で判定
   if (/[（(]交替制[）)]/i.test(text)) {
     const slashCount = (text.match(/\//g) || []).length;
     if (slashCount >= 2) return '3交替';
@@ -232,12 +228,10 @@ const extractShiftWork = (workTimeText) => {
   if (/[（(]夜勤[）)]/i.test(text)) return '夜勤';
   if (/[（(]日勤[）)]/i.test(text)) return '日勤';
   
-  // 括弧がない場合、時間帯の数で判定
   const slashCount = (text.match(/\//g) || []).length;
   if (slashCount >= 2) return '3交替';
   if (slashCount === 1) return '2交替';
   
-  // 単一の時間帯のみ
   if (/\d{1,2}[:：]\d{2}/.test(text)) return '日勤';
   
   return 'その他';
@@ -280,7 +274,6 @@ const geocodeAddress = async (prefecture, city, detail = '') => {
   }
 };
 
-
 const transformSpreadsheetData = (row, headers, addressMasterMap) => {
   const getVal = (colName) => {
     const idx = headers.indexOf(colName);
@@ -290,23 +283,18 @@ const transformSpreadsheetData = (row, headers, addressMasterMap) => {
   const aid = getVal('Aid') || `job-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   const company = getVal('派遣会社名(※自動入力)') || '';
   
-  // ⭐ 勤務形態の取得ロジック（修正） ⭐
   let shiftWork = '';
   
   if (company.includes('DPT')) {
-    // DPTの場合はAM列「シフト」を参照
     const workTimeText = getVal('シフト');
     shiftWork = extractShiftWork(workTimeText);
   } else if (company.includes('日研') || company.includes('NIKKEN')) {
-    // 日研の場合はAP列「勤務時間開始①」を参照
     const workTimeText = getVal('勤務時間開始①');
     shiftWork = extractShiftWork(workTimeText);
   } else {
-    // その他の派遣会社は従来通り「勤務形態」列
     shiftWork = getVal('勤務形態') || '日勤';
   }
   
-  // シフト・勤務時間開始①にも記載がない場合
   if (!shiftWork || shiftWork === 'その他') {
     shiftWork = getVal('勤務形態') || 'その他';
   }
@@ -324,13 +312,10 @@ const transformSpreadsheetData = (row, headers, addressMasterMap) => {
   const prefecture = getVal('所在地（都道府県）') || '';
   let addressDetail = getVal('所在地 （市区町村以降）') || '';
   
-  // ⭐ 緯度経度マスターから住所を取得（追加） ⭐
   if (addressMasterMap && addressMasterMap.has(aid)) {
     const masterData = addressMasterMap.get(aid);
-    // マスターの都道府県 + 住所を結合
     const fullAddressFromMaster = `${masterData.prefecture || ''}${masterData.address || ''}`.trim();
     if (fullAddressFromMaster) {
-      // マスターに住所がある場合は優先的に使用
       addressDetail = masterData.address || addressDetail;
     }
   }
@@ -365,7 +350,7 @@ const transformSpreadsheetData = (row, headers, addressMasterMap) => {
     minAge: parseInt(getVal('年齢下限')) || null,
     maxAge: parseInt(getVal('年齢上限')) || null,
     maxClothingSize: getVal('制服サイズ（上限）') || '',
-    shiftWork: shiftWork, // ⭐ 修正された勤務形態 ⭐
+    shiftWork: shiftWork,
     shift: getVal('シフト') || '',
     workTime1Start: getVal('勤務時間（開始①）') || '',
     workTime1End: getVal('勤務時間（終了①）') || '',
@@ -404,6 +389,47 @@ const transformSpreadsheetData = (row, headers, addressMasterMap) => {
     placement2025: parseInt(getVal('2025実績')) || 0,
     placement2024: parseInt(getVal('2024実績')) || 0,
   };
+};
+
+// =====================================
+// Google Maps関連
+// =====================================
+
+const useGoogleMaps = () => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  
+  useEffect(() => {
+    if (window.google?.maps) {
+      setIsLoaded(true);
+      return;
+    }
+    
+    const script = document.createElement('script');
+    // ⚠️ ここにあなたのGoogle Maps APIキーを入れてください
+    script.src = `https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY_HERE&libraries=geometry`;
+    script.async = true;
+    script.onload = () => setIsLoaded(true);
+    document.head.appendChild(script);
+  }, []);
+  
+  return isLoaded;
+};
+
+const findNearbyJobs = (centerJob, allJobs, seekerLocation, maxDistanceKm = 10) => {
+  if (!centerJob.lat || !centerJob.lng) return [];
+  
+  return allJobs
+    .filter(job => job.id !== centerJob.id && job.lat && job.lng)
+    .map(job => {
+      const distance = calculateDistance(
+        centerJob.lat, centerJob.lng, 
+        job.lat, job.lng
+      );
+      return { ...job, distanceFromCenter: distance };
+    })
+    .filter(job => job.distanceFromCenter <= maxDistanceKm)
+    .sort((a, b) => a.distanceFromCenter - b.distanceFromCenter)
+    .slice(0, 20);
 };
 
 // =====================================
@@ -522,9 +548,396 @@ const ScoreBreakdown = ({ breakdown }) => (
   </div>
 );
 
+// =====================================
+// 地図コンポーネント（個別案件詳細用）
+// =====================================
+
+const JobMapView = ({ selectedJob, nearbyJobs, seekerLocation, onJobClick }) => {
+  const mapRef = useRef(null);
+  const isGoogleMapsLoaded = useGoogleMaps();
+
+  useEffect(() => {
+    if (!isGoogleMapsLoaded || !mapRef.current || !selectedJob.lat) return;
+
+    const googleMap = new window.google.maps.Map(mapRef.current, {
+      center: { lat: selectedJob.lat, lng: selectedJob.lng },
+      zoom: 11,
+      mapTypeControl: true,
+      streetViewControl: false,
+    });
+
+    const mainMarker = new window.google.maps.Marker({
+      position: { lat: selectedJob.lat, lng: selectedJob.lng },
+      map: googleMap,
+      icon: {
+        url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
+        scaledSize: new window.google.maps.Size(50, 50),
+      },
+      title: selectedJob.name,
+      zIndex: 1000,
+    });
+
+    const mainInfoWindow = new window.google.maps.InfoWindow({
+      content: `
+        <div style="padding: 8px; max-width: 250px;">
+          <h3 style="margin: 0 0 8px 0; color: #DC2626; font-weight: bold;">📍 選択中の案件</h3>
+          <p style="margin: 4px 0; font-weight: bold;">${selectedJob.name}</p>
+          <p style="margin: 4px 0; font-size: 12px; color: #64748B;">${selectedJob.company}</p>
+          <p style="margin: 4px 0;"><strong>💰 Fee: ${selectedJob.fee}万円</strong></p>
+          <p style="margin: 4px 0; font-size: 12px;">月収: ${selectedJob.monthlySalary}万円</p>
+          ${selectedJob.estimatedTime ? `<p style="margin: 4px 0; font-size: 12px;">🚗 通勤: 約${selectedJob.estimatedTime}分</p>` : ''}
+        </div>
+      `
+    });
+
+    mainMarker.addListener('click', () => {
+      mainInfoWindow.open(googleMap, mainMarker);
+    });
+
+    if (seekerLocation?.lat && seekerLocation?.lng) {
+      const homeMarker = new window.google.maps.Marker({
+        position: { lat: seekerLocation.lat, lng: seekerLocation.lng },
+        map: googleMap,
+        icon: {
+          url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
+          scaledSize: new window.google.maps.Size(40, 40),
+        },
+        title: '自宅',
+        zIndex: 999,
+      });
+
+      const homeInfoWindow = new window.google.maps.InfoWindow({
+        content: `
+          <div style="padding: 8px;">
+            <h3 style="margin: 0; color: #059669;">🏠 自宅</h3>
+            <p style="margin: 4px 0; font-size: 12px;">${seekerLocation.prefecture || ''}${seekerLocation.city || ''}</p>
+          </div>
+        `
+      });
+
+      homeMarker.addListener('click', () => {
+        homeInfoWindow.open(googleMap, homeMarker);
+      });
+
+      new window.google.maps.Polyline({
+        path: [
+          { lat: seekerLocation.lat, lng: seekerLocation.lng },
+          { lat: selectedJob.lat, lng: selectedJob.lng }
+        ],
+        geodesic: true,
+        strokeColor: '#4F46E5',
+        strokeOpacity: 0.6,
+        strokeWeight: 2,
+        map: googleMap,
+      });
+    }
+
+    nearbyJobs.forEach(job => {
+      const marker = new window.google.maps.Marker({
+        position: { lat: job.lat, lng: job.lng },
+        map: googleMap,
+        icon: {
+          url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+          scaledSize: new window.google.maps.Size(32, 32),
+        },
+        title: job.name,
+        label: {
+          text: `${job.fee}万`,
+          color: 'white',
+          fontSize: '11px',
+          fontWeight: 'bold',
+        },
+      });
+
+      const infoWindow = new window.google.maps.InfoWindow({
+        content: `
+          <div style="padding: 8px; max-width: 250px;">
+            <p style="margin: 0 0 4px 0; font-weight: bold; font-size: 13px;">${job.name}</p>
+            <p style="margin: 4px 0; font-size: 11px; color: #64748B;">${job.company}</p>
+            <div style="margin: 8px 0; padding: 6px; background: #F1F5F9; border-radius: 4px;">
+              <p style="margin: 2px 0; font-size: 12px;"><strong>💰 Fee: ${job.fee}万円</strong></p>
+              <p style="margin: 2px 0; font-size: 11px;">月収: ${job.monthlySalary}万円</p>
+              <p style="margin: 2px 0; font-size: 11px;">欠員: ${job.vacancy || 0}名</p>
+              <p style="margin: 2px 0; font-size: 11px; color: #6366F1;">📍 ${job.distanceFromCenter?.toFixed(1)}km</p>
+            </div>
+          </div>
+        `
+      });
+
+      marker.addListener('click', () => {
+        infoWindow.open(googleMap, marker);
+      });
+    });
+
+  }, [isGoogleMapsLoaded, selectedJob, nearbyJobs, seekerLocation]);
+
+  if (!isGoogleMapsLoaded) {
+    return (
+      <div className="flex items-center justify-center h-96 bg-slate-50 rounded-lg">
+        <div className="text-center">
+          <Loader className="animate-spin mx-auto mb-3 text-indigo-600" size={32} />
+          <p className="text-slate-600">地図を読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!selectedJob.lat || !selectedJob.lng) {
+    return (
+      <div className="flex items-center justify-center h-96 bg-slate-50 rounded-lg">
+        <div className="text-center">
+          <MapPin className="mx-auto mb-3 text-slate-400" size={48} />
+          <p className="text-slate-600">この案件には位置情報がありません</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+        <div className="flex items-start gap-2">
+          <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={16} />
+          <div>
+            <p className="text-blue-800 font-medium mb-1">地図の見方</p>
+            <div className="text-blue-700 text-xs space-y-1">
+              <p>🔴 選択中の案件 | 🏠 あなたの自宅 | 🔵 周辺の案件（{nearbyJobs.length}件）</p>
+              <p>マーカーをクリックすると詳細が表示されます</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div 
+        ref={mapRef} 
+        className="w-full rounded-lg border-2 border-slate-200 shadow-lg"
+        style={{ height: '500px' }}
+      />
+
+      {nearbyJobs.length > 0 && (
+        <div className="bg-white border border-slate-200 rounded-lg p-4">
+          <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
+            <Target size={18} className="text-indigo-600" />
+            周辺案件 ({nearbyJobs.length}件)
+          </h4>
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {nearbyJobs.slice(0, 10).map(job => (
+              <div 
+                key={job.id}
+                className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-lg border border-slate-100 cursor-pointer transition"
+                onClick={() => onJobClick && onJobClick(job)}
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm text-slate-800 truncate">{job.name}</p>
+                  <p className="text-xs text-slate-500">{job.company}</p>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <span className="text-xs text-slate-600">📍 {job.distanceFromCenter?.toFixed(1)}km</span>
+                  <span className="font-bold text-indigo-600">💰{job.fee}万</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {nearbyJobs.length === 0 && (
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-6 text-center">
+          <MapPin className="mx-auto mb-2 text-slate-400" size={32} />
+          <p className="text-slate-600 text-sm">周辺10km以内に他の案件はありません</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// =====================================
+// 全件地図表示コンポーネント（新規）
+// =====================================
+
+const AllJobsMapView = ({ jobs, seekerLocation, onJobClick }) => {
+  const mapRef = useRef(null);
+  const isGoogleMapsLoaded = useGoogleMaps();
+
+  useEffect(() => {
+    if (!isGoogleMapsLoaded || !mapRef.current || jobs.length === 0) return;
+
+    // 中心位置を計算（自宅 or 案件の中心）
+    let centerLat, centerLng, zoom;
+    
+    if (seekerLocation?.lat && seekerLocation?.lng) {
+      centerLat = seekerLocation.lat;
+      centerLng = seekerLocation.lng;
+      zoom = 10;
+    } else {
+      const validJobs = jobs.filter(j => j.lat && j.lng);
+      if (validJobs.length === 0) return;
+      
+      centerLat = validJobs.reduce((sum, j) => sum + j.lat, 0) / validJobs.length;
+      centerLng = validJobs.reduce((sum, j) => sum + j.lng, 0) / validJobs.length;
+      zoom = 9;
+    }
+
+    const googleMap = new window.google.maps.Map(mapRef.current, {
+      center: { lat: centerLat, lng: centerLng },
+      zoom: zoom,
+      mapTypeControl: true,
+      streetViewControl: false,
+    });
+
+    // 自宅マーカー
+    if (seekerLocation?.lat && seekerLocation?.lng) {
+      const homeMarker = new window.google.maps.Marker({
+        position: { lat: seekerLocation.lat, lng: seekerLocation.lng },
+        map: googleMap,
+        icon: {
+          url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
+          scaledSize: new window.google.maps.Size(45, 45),
+        },
+        title: '自宅',
+        zIndex: 9999,
+      });
+
+      const homeInfoWindow = new window.google.maps.InfoWindow({
+        content: `
+          <div style="padding: 8px;">
+            <h3 style="margin: 0; color: #059669; font-weight: bold;">🏠 あなたの自宅</h3>
+            <p style="margin: 4px 0; font-size: 12px;">${seekerLocation.prefecture || ''}${seekerLocation.city || ''}</p>
+          </div>
+        `
+      });
+
+      homeMarker.addListener('click', () => {
+        homeInfoWindow.open(googleMap, homeMarker);
+      });
+    }
+
+    // 案件マーカー
+    jobs.forEach(job => {
+      if (!job.lat || !job.lng) return;
+
+      // Feeに応じて色分け
+      let iconUrl = 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png';
+      if (job.fee >= 40) {
+        iconUrl = 'http://maps.google.com/mapfiles/ms/icons/yellow-dot.png'; // 高額
+      } else if (job.fee >= 30) {
+        iconUrl = 'http://maps.google.com/mapfiles/ms/icons/orange-dot.png';
+      }
+
+      const marker = new window.google.maps.Marker({
+        position: { lat: job.lat, lng: job.lng },
+        map: googleMap,
+        icon: {
+          url: iconUrl,
+          scaledSize: new window.google.maps.Size(32, 32),
+        },
+        title: job.name,
+        label: {
+          text: `${job.fee}万`,
+          color: 'white',
+          fontSize: '10px',
+          fontWeight: 'bold',
+        },
+      });
+
+      const infoWindow = new window.google.maps.InfoWindow({
+        content: `
+          <div style="padding: 8px; max-width: 250px;">
+            <p style="margin: 0 0 4px 0; font-weight: bold; font-size: 13px;">${job.name}</p>
+            <p style="margin: 4px 0; font-size: 11px; color: #64748B;">${job.company}</p>
+            <div style="margin: 8px 0; padding: 6px; background: #F1F5F9; border-radius: 4px;">
+              <p style="margin: 2px 0; font-size: 12px;"><strong>💰 Fee: ${job.fee}万円</strong></p>
+              <p style="margin: 2px 0; font-size: 11px;">月収: ${job.monthlySalary}万円</p>
+              <p style="margin: 2px 0; font-size: 11px;">欠員: ${(job.vacancy || 0) + (job.nextMonthVacancy || 0)}名</p>
+              <p style="margin: 2px 0; font-size: 11px;">${job.shiftWork || '-'}</p>
+              ${job.estimatedTime ? `<p style="margin: 2px 0; font-size: 11px; color: #6366F1;">🚗 約${job.estimatedTime}分 (${job.distance?.toFixed(1)}km)</p>` : ''}
+            </div>
+          </div>
+        `
+      });
+
+      marker.addListener('click', () => {
+        infoWindow.open(googleMap, marker);
+      });
+    });
+
+  }, [isGoogleMapsLoaded, jobs, seekerLocation]);
+
+  if (!isGoogleMapsLoaded) {
+    return (
+      <div className="flex items-center justify-center h-[600px] bg-slate-50 rounded-lg">
+        <div className="text-center">
+          <Loader className="animate-spin mx-auto mb-3 text-indigo-600" size={32} />
+          <p className="text-slate-600">地図を読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const validJobs = jobs.filter(j => j.lat && j.lng);
+  
+  if (validJobs.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-[600px] bg-slate-50 rounded-lg">
+        <div className="text-center">
+          <MapPin className="mx-auto mb-3 text-slate-400" size={48} />
+          <p className="text-slate-600">位置情報のある案件がありません</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+        <div className="flex items-start gap-2">
+          <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={16} />
+          <div className="flex-1">
+            <p className="text-blue-800 font-medium mb-1">地図の見方</p>
+            <div className="text-blue-700 text-xs space-y-1">
+              <p>🏠 緑: あなたの自宅 | 🟡 黄: Fee 40万円以上 | 🟠 橙: Fee 30万円以上 | 🔵 青: その他</p>
+              <p>マーカーをクリックすると詳細が表示されます • 表示中: {validJobs.length}件</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div 
+        ref={mapRef} 
+        className="w-full rounded-lg border-2 border-slate-200 shadow-lg"
+        style={{ height: '600px' }}
+      />
+
+      <div className="grid grid-cols-3 gap-2 text-xs">
+        <div className="bg-yellow-50 border border-yellow-200 rounded p-2 text-center">
+          <span className="font-bold text-yellow-700">🟡 Fee 40万+</span>
+          <div className="text-yellow-600 mt-1">{jobs.filter(j => j.fee >= 40).length}件</div>
+        </div>
+        <div className="bg-orange-50 border border-orange-200 rounded p-2 text-center">
+          <span className="font-bold text-orange-700">🟠 Fee 30-39万</span>
+          <div className="text-orange-600 mt-1">{jobs.filter(j => j.fee >= 30 && j.fee < 40).length}件</div>
+        </div>
+        <div className="bg-blue-50 border border-blue-200 rounded p-2 text-center">
+          <span className="font-bold text-blue-700">🔵 その他</span>
+          <div className="text-blue-600 mt-1">{jobs.filter(j => j.fee < 30).length}件</div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // 案件詳細モーダル
-const JobDetailModal = ({ job, onClose, seekerConditions }) => {
+const JobDetailModal = ({ job, onClose, seekerConditions, allJobs = [] }) => {
+  const [activeTab, setActiveTab] = useState('detail');
+  
   if (!job) return null;
+
+  const nearbyJobs = findNearbyJobs(
+    job, 
+    allJobs, 
+    seekerConditions.address,
+    10
+  );
 
   const checkCondition = (conditionId) => {
     switch(conditionId) {
@@ -641,6 +1054,35 @@ const JobDetailModal = ({ job, onClose, seekerConditions }) => {
           </div>
         </div>
 
+        {/* タブナビゲーション */}
+        <div className="flex border-b border-slate-200 bg-slate-50 flex-shrink-0">
+          <button
+            onClick={() => setActiveTab('detail')}
+            className={`flex-1 px-6 py-3 font-medium transition-all ${
+              activeTab === 'detail'
+                ? 'bg-white text-indigo-600 border-b-2 border-indigo-600'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            📋 詳細情報
+          </button>
+          <button
+            onClick={() => setActiveTab('map')}
+            className={`flex-1 px-6 py-3 font-medium transition-all ${
+              activeTab === 'map'
+                ? 'bg-white text-indigo-600 border-b-2 border-indigo-600'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            🗺️ 地図・周辺案件
+            {nearbyJobs.length > 0 && (
+              <span className="ml-2 px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-xs font-bold">
+                {nearbyJobs.length}件
+              </span>
+            )}
+          </button>
+        </div>
+
         {(failConditions.length > 0 || relaxConditions.length > 0) && (
           <div className="p-4 border-b border-slate-200 bg-slate-50 flex-shrink-0">
             <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
@@ -695,99 +1137,133 @@ const JobDetailModal = ({ job, onClose, seekerConditions }) => {
         )}
 
         <div className="p-4 overflow-y-auto flex-1">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Section title="💰 給与情報">
-                <InfoRow label="総支給額" value={job.monthlySalary ? `${job.monthlySalary}万円（${job.monthlySalaryRaw?.toLocaleString()}円）` : '-'} />
-                <InfoRow label="基準内賃金" value={job.baseSalary ? `${job.baseSalary}万円` : '-'} />
-                <InfoRow label="Fee" value={job.fee ? `${job.fee}万円（${job.feeRaw?.toLocaleString()}円）` : '-'} highlight />
-                <InfoRow label="残業手当（月平均）" value={job.overtimePay} />
-                <InfoRow label="休日出勤手当" value={job.holidayPay} />
-                <InfoRow label="深夜手当" value={job.nightPay} />
-              </Section>
-
-              <Section title="👤 応募条件">
-                <InfoRow label="性別" value={job.gender} />
-                <InfoRow label="年齢" value={job.minAge || job.maxAge ? `${job.minAge || '-'}歳 〜 ${job.maxAge || '-'}歳` : '不問'} />
-                <InfoRow label="制服サイズ上限" value={job.maxClothingSize} />
-                <InfoRow label="業務経験" value={job.experienceRequired} />
-                {job.experienceDetail && <InfoRow label="業務経験詳細" value={job.experienceDetail} />}
-                <InfoRow label="職種経験" value={job.jobExperience} />
-                {job.jobExperienceDetail && <InfoRow label="職種経験詳細" value={job.jobExperienceDetail} />}
-                <InfoRow label="外国籍" value={job.foreignerAccepted} />
-                <InfoRow label="刺青" value={job.tattooAccepted} />
-                {job.tattooCondition && <InfoRow label="刺青条件" value={job.tattooCondition} />}
-                <InfoRow label="職場見学" value={job.workplaceVisit} />
-              </Section>
-
-              <Section title="🚗 通勤・入寮">
-                <InfoRow label="可能通勤手段" value={job.acceptedCommuteMethods?.join(' / ') || '-'} />
-                <InfoRow label="入寮" value={job.dormAvailable ? '可' : '不可'} highlight={job.dormAvailable} />
-                <InfoRow label="社宅費補助" value={job.dormSubsidy} />
-                <InfoRow label="社宅費負担" value={job.dormSubsidyType} />
-                <InfoRow label="家族入寮" value={job.familyDorm} />
-                <InfoRow label="カップル入居" value={job.coupleDorm} />
-                {job.distance && <InfoRow label="距離" value={`${job.distance.toFixed(1)}km`} />}
-                {job.estimatedTime && <InfoRow label="推定通勤時間" value={`約${job.estimatedTime}分`} />}
-              </Section>
-            </div>
-
-            <div>
-              <Section title="🕐 勤務情報">
-                <InfoRow label="勤務形態" value={job.shiftWork} />
-                <InfoRow label="シフト" value={job.shift} />
-                <InfoRow label="勤務時間①" value={job.workTime1Start && job.workTime1End ? `${job.workTime1Start} 〜 ${job.workTime1End}` : '-'} />
-                <InfoRow label="勤務時間②" value={job.workTime2Start && job.workTime2End ? `${job.workTime2Start} 〜 ${job.workTime2End}` : '-'} />
-                <InfoRow label="勤務時間③" value={job.workTime3Start && job.workTime3End ? `${job.workTime3Start} 〜 ${job.workTime3End}` : '-'} />
-                <InfoRow label="勤務時間④" value={job.workTime4Start && job.workTime4End ? `${job.workTime4Start} 〜 ${job.workTime4End}` : '-'} />
-                <InfoRow label="休日" value={job.holidays} />
-                <InfoRow label="年間休日" value={job.annualHolidays ? `${job.annualHolidays}日` : '-'} />
-                <InfoRow label="残業（月平均）" value={job.overtime ? `${job.overtime}時間` : '-'} />
-              </Section>
-
-              <Section title="📊 欠員情報">
-                <InfoRow label="当月欠員数" value={job.vacancy ? `${job.vacancy}名` : '0名'} highlight={job.vacancy >= 5} />
-                <InfoRow label="翌月欠員数" value={job.nextMonthVacancy ? `${job.nextMonthVacancy}名` : '0名'} />
-                <InfoRow label="翌々月欠員数" value={job.nextNextMonthVacancy ? `${job.nextNextMonthVacancy}名` : '0名'} />
-              </Section>
-
-              {((job.placement2025 || 0) + (job.placement2024 || 0) > 0) && (
-                <Section title="📈 入社実績">
-                  <div className="bg-gradient-to-r from-teal-50 to-emerald-50 rounded-lg p-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-teal-700">{job.placement2025 || 0}名</div>
-                        <div className="text-xs text-teal-600">2025年実績</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-emerald-700">{job.placement2024 || 0}名</div>
-                        <div className="text-xs text-emerald-600">2024年実績</div>
-                      </div>
-                    </div>
-                    <div className="mt-2 pt-2 border-t border-teal-200 text-center">
-                      <span className="text-sm font-bold text-teal-800">
-                        合計 {(job.placement2025 || 0) + (job.placement2024 || 0)}名
-                      </span>
-                    </div>
-                  </div>
+          {activeTab === 'detail' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Section title="💰 給与情報">
+                  <InfoRow label="総支給額" value={job.monthlySalary ? `${job.monthlySalary}万円（${job.monthlySalaryRaw?.toLocaleString()}円）` : '-'} />
+                  <InfoRow label="基準内賃金" value={job.baseSalary ? `${job.baseSalary}万円` : '-'} />
+                  <InfoRow label="Fee" value={job.fee ? `${job.fee}万円（${job.feeRaw?.toLocaleString()}円）` : '-'} highlight />
+                  <InfoRow label="残業手当（月平均）" value={job.overtimePay} />
+                  <InfoRow label="休日出勤手当" value={job.holidayPay} />
+                  <InfoRow label="深夜手当" value={job.nightPay} />
                 </Section>
-              )}
 
-              {job.scoreBreakdown && (
-                <Section title="📈 スコア内訳">
-                  <div className="bg-slate-50 rounded-lg p-3">
-                    <ScoreBreakdown breakdown={job.scoreBreakdown} />
-                    <div className="border-t border-slate-200 mt-2 pt-2 flex justify-between font-bold">
-                      <span>合計</span>
-                      <span className="text-indigo-600">{job.pickupScore}点</span>
-                    </div>
-                  </div>
+                <Section title="👤 応募条件">
+                  <InfoRow label="性別" value={job.gender} />
+                  <InfoRow label="年齢" value={job.minAge || job.maxAge ? `${job.minAge || '-'}歳 〜 ${job.maxAge || '-'}歳` : '不問'} />
+                  <InfoRow label="制服サイズ上限" value={job.maxClothingSize} />
+                  <InfoRow label="業務経験" value={job.experienceRequired} />
+                  {job.experienceDetail && <InfoRow label="業務経験詳細" value={job.experienceDetail} />}
+                  <InfoRow label="職種経験" value={job.jobExperience} />
+                  {job.jobExperienceDetail && <InfoRow label="職種経験詳細" value={job.jobExperienceDetail} />}
+                  <InfoRow label="外国籍" value={job.foreignerAccepted} />
+                  <InfoRow label="刺青" value={job.tattooAccepted} />
+                  {job.tattooCondition && <InfoRow label="刺青条件" value={job.tattooCondition} />}
+                  <InfoRow label="職場見学" value={job.workplaceVisit} />
                 </Section>
-              )}
-            </div>
-          </div>
 
-          {(job.merit || job.workDetail || job.remarks) && (
+                <Section title="🚗 通勤・入寮">
+                  <InfoRow label="可能通勤手段" value={job.acceptedCommuteMethods?.join(' / ') || '-'} />
+                  <InfoRow label="入寮" value={job.dormAvailable ? '可' : '不可'} highlight={job.dormAvailable} />
+                  <InfoRow label="社宅費補助" value={job.dormSubsidy} />
+                  <InfoRow label="社宅費負担" value={job.dormSubsidyType} />
+                  <InfoRow label="家族入寮" value={job.familyDorm} />
+                  <InfoRow label="カップル入居" value={job.coupleDorm} />
+                  {job.distance && <InfoRow label="距離" value={`${job.distance.toFixed(1)}km`} />}
+                  {job.estimatedTime && <InfoRow label="推定通勤時間" value={`約${job.estimatedTime}分`} />}
+                  
+                  {(job.lat && job.lng) && (
+                    <div className="mt-3 pt-3 border-t border-slate-200">
+                      <button
+                        onClick={() => setActiveTab('map')}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg transition-all font-medium"
+                      >
+                        <MapPin size={16} />
+                        地図で周辺案件を確認する
+                        {nearbyJobs.length > 0 && (
+                          <span className="px-2 py-0.5 bg-indigo-600 text-white rounded-full text-xs">
+                            {nearbyJobs.length}件
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </Section>
+              </div>
+
+              <div>
+                <Section title="🕐 勤務情報">
+                  <InfoRow label="勤務形態" value={job.shiftWork} />
+                  <InfoRow label="シフト" value={job.shift} />
+                  <InfoRow label="勤務時間①" value={job.workTime1Start && job.workTime1End ? `${job.workTime1Start} 〜 ${job.workTime1End}` : '-'} />
+                  <InfoRow label="勤務時間②" value={job.workTime2Start && job.workTime2End ? `${job.workTime2Start} 〜 ${job.workTime2End}` : '-'} />
+                  <InfoRow label="勤務時間③" value={job.workTime3Start && job.workTime3End ? `${job.workTime3Start} 〜 ${job.workTime3End}` : '-'} />
+                  <InfoRow label="勤務時間④" value={job.workTime4Start && job.workTime4End ? `${job.workTime4Start} 〜 ${job.workTime4End}` : '-'} />
+                  <InfoRow label="休日" value={job.holidays} />
+                  <InfoRow label="年間休日" value={job.annualHolidays ? `${job.annualHolidays}日` : '-'} />
+                  <InfoRow label="残業（月平均）" value={job.overtime ? `${job.overtime}時間` : '-'} />
+                </Section>
+
+                <Section title="📊 欠員情報">
+                  <InfoRow label="当月欠員数" value={job.vacancy ? `${job.vacancy}名` : '0名'} highlight={job.vacancy >= 5} />
+                  <InfoRow label="翌月欠員数" value={job.nextMonthVacancy ? `${job.nextMonthVacancy}名` : '0名'} />
+                  <InfoRow label="翌々月欠員数" value={job.nextNextMonthVacancy ? `${job.nextNextMonthVacancy}名` : '0名'} />
+                </Section>
+
+                {((job.placement2025 || 0) + (job.placement2024 || 0) > 0) && (
+                  <Section title="📈 入社実績">
+                    <div className="bg-gradient-to-r from-teal-50 to-emerald-50 rounded-lg p-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-teal-700">{job.placement2025 || 0}名</div>
+                          <div className="text-xs text-teal-600">2025年実績</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-emerald-700">{job.placement2024 || 0}名</div>
+                          <div className="text-xs text-emerald-600">2024年実績</div>
+                        </div>
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-teal-200 text-center">
+                        <span className="text-sm font-bold text-teal-800">
+                          合計 {(job.placement2025 || 0) + (job.placement2024 || 0)}名
+                        </span>
+                      </div>
+                    </div>
+                  </Section>
+                )}
+
+                {job.scoreBreakdown && (
+                  <Section title="📈 スコア内訳">
+                    <div className="bg-slate-50 rounded-lg p-3">
+                      <ScoreBreakdown breakdown={job.scoreBreakdown} />
+                      <div className="border-t border-slate-200 mt-2 pt-2 flex justify-between font-bold">
+                        <span>合計</span>
+                        <span className="text-indigo-600">{job.pickupScore}点</span>
+                      </div>
+                    </div>
+                  </Section>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'map' && (
+            <JobMapView 
+              selectedJob={job}
+              nearbyJobs={nearbyJobs}
+              seekerLocation={seekerConditions.address}
+              onJobClick={(clickedJob) => {
+                onClose();
+                setTimeout(() => {
+                  // 親コンポーネントのsetSelectedJobを呼び出す必要があるため
+                  // ここでは単純にモーダルを閉じるのみ
+                }, 100);
+              }}
+            />
+          )}
+
+          {(job.merit || job.workDetail || job.remarks) && activeTab === 'detail' && (
             <div className="mt-4 space-y-3">
               {job.merit && (
                 <div className="bg-emerald-50 rounded-lg p-3">
@@ -852,7 +1328,6 @@ const AddressInput = ({ value, onChange, onGeocode, isLoading }) => {
       mapInstanceRef.current = null;
     }
   
-    // 少し遅延させて確実に初期化
     setTimeout(() => {
       if (!mapContainerRef.current) return;
       
@@ -881,7 +1356,7 @@ const AddressInput = ({ value, onChange, onGeocode, isLoading }) => {
         mapInstanceRef.current = null;
       }
     };
-  }, [leafletLoaded, value.lat, value.lng]); // ← prefecture, city, detailを削除
+  }, [leafletLoaded, value.lat, value.lng]);
 
   const shouldShowMap = typeof value.lat === 'number' && typeof value.lng === 'number';
 
@@ -964,40 +1439,40 @@ const AddressInput = ({ value, onChange, onGeocode, isLoading }) => {
       </div>
 
       {shouldShowMap && (
-  <div className="mt-4 border-2 border-indigo-200 rounded-xl overflow-hidden bg-white shadow-lg">
-    <div className="bg-indigo-50 px-4 py-2 border-b border-indigo-200 flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <MapPin className="text-indigo-600" size={18} />
-        <span className="font-semibold text-indigo-800 text-sm">取得した位置</span>
-      </div>
-      
-      <a
-        href={'https://www.openstreetmap.org/?mlat=' + value.lat + '&mlon=' + value.lng + '&zoom=15'}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 hover:underline transition"
-      >
-        <ExternalLink size={14} />
-        OpenStreetMapで開く
-      </a>
-    </div>
-    
-    <div 
-      ref={mapContainerRef}
-      style={{ width: '100%', height: '400px', background: '#f1f5f9' }}
-    />
-    
-    <div className="px-4 py-3 bg-slate-50 text-xs text-slate-600 border-t border-slate-200">
-      <div className="flex items-center justify-between">
-        <span className="font-mono">{value.lat.toFixed(6) + ', ' + value.lng.toFixed(6)}</span>
-        <span className="text-slate-500">{value.prefecture + value.city + value.detail}</span>
-      </div>
-    </div>
-  </div>
-)}
+        <div className="mt-4 border-2 border-indigo-200 rounded-xl overflow-hidden bg-white shadow-lg">
+          <div className="bg-indigo-50 px-4 py-2 border-b border-indigo-200 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <MapPin className="text-indigo-600" size={18} />
+              <span className="font-semibold text-indigo-800 text-sm">取得した位置</span>
+            </div>
+            <a
+              href={'https://www.openstreetmap.org/?mlat=' + value.lat + '&mlon=' + value.lng + '&zoom=15'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 hover:underline transition"
+            >
+              <ExternalLink size={14} />
+              OpenStreetMapで開く
+            </a>
+          </div>
+          
+          <div 
+            ref={mapContainerRef}
+            style={{ width: '100%', height: '400px', background: '#f1f5f9' }}
+          />
+          
+          <div className="px-4 py-3 bg-slate-50 text-xs text-slate-600 border-t border-slate-200">
+            <div className="flex items-center justify-between">
+              <span className="font-mono">{value.lat.toFixed(6) + ', ' + value.lng.toFixed(6)}</span>
+              <span className="text-slate-500">{value.prefecture + value.city + value.detail}</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
 // =====================================
 // メインコンポーネント
 // =====================================
@@ -1054,6 +1529,9 @@ const JobMatchingFlowchart = () => {
   const [selectedCompanies, setSelectedCompanies] = useState(new Set());
   const [showCompanyFilter, setShowCompanyFilter] = useState(false);
   const [showFilterOptions, setShowFilterOptions] = useState(false);
+
+  // 🗺️ 地図/リスト表示モード（新規追加）
+  const [viewMode, setViewMode] = useState('list'); // 'list' or 'map'
 
   const canvasRef = useRef(null);
   const treeContainerRef = useRef(null);
@@ -1190,13 +1668,11 @@ const JobMatchingFlowchart = () => {
     setSelectedJobIds(new Set());
   };
 
-  
   const fetchSpreadsheetData = async () => {
     setIsLoading(true);
     setLoadingMessage('スプレッドシートからデータを取得中...');
   
     try {
-      // ⭐ 緯度経度マスターの取得（追加） ⭐
       setLoadingMessage('緯度経度マスターを読み込み中...');
       const masterUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?sheet=緯度経度マスター&tqx=out:json`;
       const masterResponse = await fetch(masterUrl);
@@ -1209,7 +1685,6 @@ const JobMatchingFlowchart = () => {
         const masterData = JSON.parse(masterJsonMatch[1]);
         const masterRows = masterData.table.rows;
         
-        // A列: Aid, B列: 都道府県, C列: 住所
         masterRows.forEach(row => {
           if (row.c && row.c[0]) {
             const aid = row.c[0].v || '';
@@ -1225,7 +1700,6 @@ const JobMatchingFlowchart = () => {
         console.log(`緯度経度マスターから${addressMasterMap.size}件の住所情報を取得しました`);
       }
       
-      // 案件一覧の取得
       setLoadingMessage('案件一覧を読み込み中...');
       const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json`;
       const response = await fetch(url);
@@ -1238,7 +1712,6 @@ const JobMatchingFlowchart = () => {
       const rows = data.table.rows;
       const headers = data.table.cols.map(col => col.label);
       
-      // ⭐ addressMasterMapを渡す（修正） ⭐
       const transformedJobs = rows.map(row => transformSpreadsheetData(row, headers, addressMasterMap))
         .filter(job => job.name && job.status === 'オープン');
   
@@ -1281,7 +1754,6 @@ const JobMatchingFlowchart = () => {
     }
   };
 
-  // 全件表示モード（新規追加）
   const runFullListMode = async () => {
     if (allJobs.length === 0) {
       showToast('案件データを取得してください', 'warning');
@@ -1942,9 +2414,7 @@ const JobMatchingFlowchart = () => {
       <main className="max-w-7xl mx-auto px-6 py-6">
         <ProgressStepper currentStep={mainStep} steps={['データ取得', '求職者情報', '案件ピックアップ', '分岐フロー']} />
 
-        {/* Step 1は次のコメントに続きます */}
-
-{/* Step 1: 求職者情報入力 */}
+        {/* Step 1: 求職者情報入力 */}
         {mainStep === 1 && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -2147,748 +2617,587 @@ const JobMatchingFlowchart = () => {
           </div>
         )}
 
-{/* Step 2: 自動ピックアップ結果 */}
-{mainStep === 2 && (
-  <div className="space-y-4">
-    {/* サマリー */}
-    <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl shadow-lg p-5 text-white">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold">ピックアップ結果</h2>
-        <div className="flex gap-2">
-          <button onClick={() => setMainStep(1)} className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm">条件を変更</button>
-          <button onClick={exportToCSV} className="flex items-center gap-2 px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm">
-            <Download size={16} />CSV出力
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-        <div className="bg-white/20 rounded-lg p-3 text-center">
-          <div className="text-3xl font-bold">{pickedJobs.length}</div>
-          <div className="text-sm opacity-90">該当案件</div>
-        </div>
-        <div className="bg-white/20 rounded-lg p-3 text-center">
-          <div className="text-3xl font-bold">{selectedJobIds.size}</div>
-          <div className="text-sm opacity-90">選択中</div>
-        </div>
-        <div className="bg-white/20 rounded-lg p-3 text-center">
-          <div className="text-3xl font-bold">{pickedJobs.filter(j => j.companyRank === 'S').length}</div>
-          <div className="text-sm opacity-90">Sランク</div>
-        </div>
-        <div className="bg-white/20 rounded-lg p-3 text-center">
-          <div className="text-3xl font-bold">{pickedJobs.filter(j => (j.vacancy || 0) >= 5).length}</div>
-          <div className="text-sm opacity-90">欠員5名以上</div>
-        </div>
-        <div className="bg-white/20 rounded-lg p-3 text-center">
-          <div className="text-3xl font-bold">{pickedJobs.filter(j => j.fee >= 25).length}</div>
-          <div className="text-sm opacity-90">Fee25万+</div>
-        </div>
-        <div className="bg-yellow-400/30 rounded-lg p-3 text-center border-2 border-yellow-300">
-          <div className="text-3xl font-bold">{pickedJobs.filter(j => j.fee >= 40).length}</div>
-          <div className="text-sm opacity-90">💎 Fee40万+</div>
-        </div>
-      </div>
-
-      <div className="mt-3 flex flex-wrap gap-2 text-sm">
-        {seekerConditions.age && <span className="bg-white/10 rounded px-2 py-1">👤 {seekerConditions.age}歳 / {seekerConditions.gender}</span>}
-        {seekerConditions.commuteMethod && (
-          <span className="bg-white/10 rounded px-2 py-1">🚗 {seekerConditions.commuteMethod} {seekerConditions.commuteTime}分以内</span>
-        )}
-        {seekerConditions.address.prefecture && <span className="bg-white/10 rounded px-2 py-1">📍 {seekerConditions.address.prefecture}{seekerConditions.address.city}</span>}
-      </div>
-    </div>
-
-    {/* 検索・選択コントロール */}
-    <div className="bg-white rounded-xl shadow-sm p-4">
-      <div className="flex flex-col md:flex-row md:items-center gap-4">
-        <div className="flex-1">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="案件名、会社名、住所で検索..."
-              className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                <X size={18} />
-              </button>
-            )}
-          </div>
-          {searchQuery && <p className="text-xs text-slate-500 mt-1">{filteredPickedJobs.length}件がヒット</p>}
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {searchQuery ? (
-            <>
-              <button onClick={selectAllFiltered} className="flex items-center gap-1 px-3 py-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg text-sm font-medium transition">
-                <CheckSquare size={16} />検索結果を全選択
-              </button>
-              <button onClick={deselectAllFiltered} className="flex items-center gap-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition">
-                <Square size={16} />検索結果の選択解除
-              </button>
-            </>
-          ) : (
-            <>
-              <button onClick={selectAll} className="flex items-center gap-1 px-3 py-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg text-sm font-medium transition">
-                <CheckSquare size={16} />全選択
-              </button>
-              <button onClick={deselectAll} className="flex items-center gap-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition">
-                <Square size={16} />全解除
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-3 flex items-center gap-4 text-sm">
-        <div className="flex items-center gap-2">
-          <div className={`w-3 h-3 rounded-full ${selectedJobIds.size > 0 ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-          <span className="text-slate-600">
-            <span className="font-bold text-indigo-600">{selectedJobIds.size}</span>
-            <span className="text-slate-400">/{pickedJobs.length}</span>
-            件を分析対象に選択中
-          </span>
-        </div>
-      </div>
-    </div>
-
-    {/* オプション条件（トグル式） */}
-    <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-      <button
-        onClick={() => setShowFilterOptions(!showFilterOptions)}
-        className="w-full px-4 py-3 flex items-center justify-between bg-slate-50 hover:bg-slate-100 transition"
-      >
-        <div className="flex items-center gap-2">
-          <Sliders size={18} className="text-indigo-600" />
-          <span className="font-medium text-slate-700">絞り込み条件（編集可能）</span>
-          <span className="text-xs text-slate-500">- 条件を変更して再検索できます</span>
-        </div>
-        {showFilterOptions ? <ChevronUp size={20} className="text-slate-500" /> : <ChevronDown size={20} className="text-slate-500" />}
-      </button>
-      
-      {showFilterOptions && (
-        <div className="p-4 border-t border-slate-200">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">💰 希望月収（任意）</label>
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  value={seekerConditions.monthlySalary}
-                  onChange={(e) => setSeekerConditions({ ...seekerConditions, monthlySalary: e.target.value })}
-                  placeholder="例: 25"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
-                />
-                <span className="text-xs text-slate-500 whitespace-nowrap">万円</span>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">🌓 勤務形態（任意）</label>
-              <select
-                value={seekerConditions.shiftWork}
-                onChange={(e) => setSeekerConditions({ ...seekerConditions, shiftWork: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">未設定</option>
-                {shiftWorkOptions.map(option => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">🚗 通勤手段（任意）</label>
-              <select
-                value={seekerConditions.commuteMethod}
-                onChange={(e) => setSeekerConditions({ ...seekerConditions, commuteMethod: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
-              >
-                {commuteMethods.map(method => (
-                  <option key={method.value} value={method.value}>{method.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">⏱️ 通勤時間（分）</label>
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  value={seekerConditions.commuteTime}
-                  onChange={(e) => setSeekerConditions({ ...seekerConditions, commuteTime: parseInt(e.target.value) || 30 })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
-                />
-                <span className="text-xs text-slate-500 whitespace-nowrap">分以内</span>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">🏠 入寮希望（任意）</label>
-              <select
-                value={seekerConditions.commutePreference}
-                onChange={(e) => setSeekerConditions({ ...seekerConditions, commutePreference: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
-              >
-                {commutePreferenceOptions.map(option => (
-                  <option key={option} value={option}>{option || '未設定'}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          
-          <div className="mt-3 flex justify-end">
-            <button
-              onClick={runAutoPickup}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all text-sm font-medium"
-            >
-              <RefreshCw size={16} />条件を反映して再検索
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-
-    {/* 派遣会社フィルター */}
-    <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-      <button
-        onClick={() => setShowCompanyFilter(!showCompanyFilter)}
-        className="w-full px-4 py-3 flex items-center justify-between bg-slate-50 hover:bg-slate-100 transition"
-      >
-        <div className="flex items-center gap-2">
-          <Building size={18} className="text-indigo-600" />
-          <span className="font-medium text-slate-700">派遣会社フィルター</span>
-          {selectedCompanies.size > 0 && (
-            <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-xs font-bold">
-              {selectedCompanies.size}社選択中
-            </span>
-          )}
-        </div>
-        {showCompanyFilter ? <ChevronUp size={20} className="text-slate-500" /> : <ChevronDown size={20} className="text-slate-500" />}
-      </button>
-      
-      {showCompanyFilter && (
-        <div className="p-4 border-t border-slate-200">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm text-slate-600">
-              {uniqueCompanies.length}社の派遣会社が見つかりました
-            </span>
-            <div className="flex gap-2">
-              <button
-                onClick={selectAllCompanies}
-                className="text-xs px-3 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg transition"
-              >
-                全選択
-              </button>
-              <button
-                onClick={deselectAllCompanies}
-                className="text-xs px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition"
-              >
-                全解除
-              </button>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-60 overflow-y-auto">
-            {uniqueCompanies.map(company => {
-              const isSelected = selectedCompanies.has(company);
-              const companyJobs = pickedJobs.filter(j => j.company === company);
-              const rank = getCompanyRank(company);
-              
-              return (
-                <label
-                  key={company}
-                  className={`flex items-center gap-2 p-2 rounded-lg border-2 cursor-pointer transition-all ${
-                    isSelected
-                      ? 'border-indigo-500 bg-indigo-50'
-                      : 'border-slate-200 bg-white hover:border-slate-300'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => toggleCompanySelection(company)}
-                    className="w-4 h-4 text-indigo-600 rounded focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1">
-                      <CompanyRankBadge rank={rank} />
-                      <span className="text-xs font-medium text-slate-700 truncate">
-                        {company}
-                      </span>
-                    </div>
-                    <span className="text-xs text-slate-500">
-                      {companyJobs.length}件
-                    </span>
-                  </div>
-                </label>
-              );
-            })}
-          </div>
-          
-          {selectedCompanies.size > 0 && (
-            <div className="mt-3 p-2 bg-indigo-50 rounded-lg text-sm text-indigo-700">
-              <strong>{selectedCompanies.size}社</strong>の派遣会社でフィルタリング中
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-
-    {/* タブとソート */}
-    <div className="bg-white rounded-xl shadow-sm p-4">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex gap-2 overflow-x-auto">
-          <button
-            onClick={() => setActiveTab('all')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${
-              activeTab === 'all' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            全件 ({pickedJobs.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('day-shift')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${
-              activeTab === 'day-shift' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            ☀️ 日勤 ({pickedJobs.filter(j => j.shiftWork === '日勤').length})
-          </button>
-          <button
-            onClick={() => setActiveTab('other-shift')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${
-              activeTab === 'other-shift' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            🌙 その他 ({pickedJobs.filter(j => j.shiftWork !== '日勤').length})
-          </button>
-          <button
-            onClick={() => { setActiveTab('high-fee'); }}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${
-              activeTab === 'high-fee' ? 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-            }`}
-          >
-            💎 高額40万+ ({pickedJobs.filter(j => j.fee >= 40).length})
-          </button>
-          
-          <button
-            onClick={() => { setActiveTab('placement-history'); setSortBy('placement'); }}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${
-              activeTab === 'placement-history' ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-            }`}
-          >
-            📈 入社実績 ({pickedJobs.filter(j => (j.placement2025 || 0) + (j.placement2024 || 0) > 0).length})
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-slate-600">並び替え:</span>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="score">スコア順（高い順）</option>
-            <option value="distance">距離順（近い順）</option>
-            <option value="fee">Fee順（高い順）</option>
-            <option value="vacancy">欠員数順（多い順）</option>
-            <option value="salary">月収順（高い順）</option>
-            <option value="placement">入社実績順（多い順）</option>
-          </select>
-        </div>
-      </div>
-    </div>
-
-    {/* ピックアップ案件リスト */}
-    <div className="bg-white rounded-xl shadow-sm p-4">
-      <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
-        <Target className="text-indigo-600" size={20} />
-        ピックアップ案件（{filteredPickedJobs.length}件）
-        <span className="text-sm font-normal text-slate-500">- チェックで分析対象を選択、クリックで詳細表示</span>
-      </h3>
-      
-      <div className="space-y-2 max-h-[500px] overflow-y-auto">
-        {filteredPickedJobs.map((job, index) => {
-          const isSelected = selectedJobIds.has(job.id);
-          const originalIndex = pickedJobs.findIndex(j => j.id === job.id);
-          
-          return (
-            <div 
-              key={job.id} 
-              className={`border rounded-lg p-3 transition-all cursor-pointer ${
-                isSelected 
-                  ? 'border-indigo-300 bg-indigo-50 hover:bg-indigo-100' 
-                  : 'border-slate-200 bg-white hover:bg-slate-50'
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <div onClick={(e) => { e.stopPropagation(); toggleJobSelection(job.id); }} className="flex-shrink-0 pt-1">
-                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all cursor-pointer ${
-                    isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 hover:border-indigo-400'
-                  }`}>
-                    {isSelected && <Check size={14} className="text-white" />}
-                  </div>
-                </div>
-
-                <div className="flex-1 min-w-0" onClick={() => setSelectedJob(job)}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-2 flex-1 min-w-0">
-                      <span className="text-sm font-bold text-slate-400 w-8">#{originalIndex + 1}</span>
-                      <CompanyRankBadge rank={job.companyRank} />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-slate-800 truncate flex items-center gap-2">
-                          {job.name}
-                          <Eye size={14} className="text-slate-400" />
-                        </div>
-                        <div className="text-xs text-slate-500">{job.company} / {job.prefecture} {job.address?.substring(0, 20)}</div>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {job.shiftWork && (
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 ${
-                              job.shiftWork === '日勤' ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'
-                            } rounded-full text-xs`}>
-                              {job.shiftWork === '日勤' ? '☀️' : '🌙'}{job.shiftWork}
-                            </span>
-                          )}
-                          {job.estimatedTime && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs">
-                              🚗{job.estimatedTime}分 ({job.distance?.toFixed(1)}km)
-                            </span>
-                          )}
-                          {(job.vacancy || 0) >= 5 && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs">
-                              👥欠員{job.vacancy + (job.nextMonthVacancy || 0)}名
-                            </span>
-                          )}
-                          {job.dormAvailable && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-xs">
-                              🏠入寮可
-                            </span>
-                          )}
-                          {job.fee >= 40 && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full text-xs font-bold">
-                              💎高額
-                            </span>
-                          )}
-                          {((job.placement2025 || 0) + (job.placement2024 || 0) > 0) && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-teal-100 text-teal-700 rounded-full text-xs font-bold">
-                              📈{(job.placement2025 || 0) + (job.placement2024 || 0)}名
-                              {job.placement2025 > 0 && <span className="text-[10px]">(25:{job.placement2025})</span>}
-                              {job.placement2024 > 0 && <span className="text-[10px]">(24:{job.placement2024})</span>}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <div className={`${job.pickupScore >= 80 ? 'bg-emerald-500' : job.pickupScore >= 60 ? 'bg-amber-500' : 'bg-orange-500'} text-white px-3 py-1 rounded-full text-sm font-bold`}>
-                        {job.pickupScore}点
-                      </div>
-                      <div className={`font-bold mt-1 ${job.fee >= 40 ? 'text-yellow-600' : 'text-indigo-600'}`}>💰{job.fee}万</div>
-                      <div className="text-xs text-slate-500">月収{job.monthlySalary}万</div>
-                    </div>
-                  </div>
+        {/* Step 2: ピックアップ結果 */}
+        {mainStep === 2 && (
+          <div className="space-y-4">
+            {/* サマリー */}
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl shadow-lg p-5 text-white">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold">ピックアップ結果</h2>
+                <div className="flex gap-2">
+                  <button onClick={() => setMainStep(1)} className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm">条件を変更</button>
+                  <button onClick={exportToCSV} className="flex items-center gap-2 px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm">
+                    <Download size={16} />CSV出力
+                  </button>
                 </div>
               </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                <div className="bg-white/20 rounded-lg p-3 text-center">
+                  <div className="text-3xl font-bold">{pickedJobs.length}</div>
+                  <div className="text-sm opacity-90">該当案件</div>
+                </div>
+                <div className="bg-white/20 rounded-lg p-3 text-center">
+                  <div className="text-3xl font-bold">{selectedJobIds.size}</div>
+                  <div className="text-sm opacity-90">選択中</div>
+                </div>
+                <div className="bg-white/20 rounded-lg p-3 text-center">
+                  <div className="text-3xl font-bold">{pickedJobs.filter(j => j.companyRank === 'S').length}</div>
+                  <div className="text-sm opacity-90">Sランク</div>
+                </div>
+                <div className="bg-white/20 rounded-lg p-3 text-center">
+                  <div className="text-3xl font-bold">{pickedJobs.filter(j => (j.vacancy || 0) >= 5).length}</div>
+                  <div className="text-sm opacity-90">欠員5名以上</div>
+                </div>
+                <div className="bg-white/20 rounded-lg p-3 text-center">
+                  <div className="text-3xl font-bold">{pickedJobs.filter(j => j.fee >= 25).length}</div>
+                  <div className="text-sm opacity-90">Fee25万+</div>
+                </div>
+                <div className="bg-yellow-400/30 rounded-lg p-3 text-center border-2 border-yellow-300">
+                  <div className="text-3xl font-bold">{pickedJobs.filter(j => j.fee >= 40).length}</div>
+                  <div className="text-sm opacity-90">💎 Fee40万+</div>
+                </div>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-2 text-sm">
+                {seekerConditions.age && <span className="bg-white/10 rounded px-2 py-1">👤 {seekerConditions.age}歳 / {seekerConditions.gender}</span>}
+                {seekerConditions.commuteMethod && (
+                  <span className="bg-white/10 rounded px-2 py-1">🚗 {seekerConditions.commuteMethod} {seekerConditions.commuteTime}分以内</span>
+                )}
+                {seekerConditions.address.prefecture && <span className="bg-white/10 rounded px-2 py-1">📍 {seekerConditions.address.prefecture}{seekerConditions.address.city}</span>}
+              </div>
             </div>
-          );
-        })}
-        
-        {filteredPickedJobs.length === 0 && searchQuery && (
-          <div className="text-center py-8 text-slate-500">
-            <Search size={48} className="mx-auto mb-3 opacity-30" />
-            <p>「{searchQuery}」に一致する案件が見つかりませんでした</p>
-          </div>
-        )}
-        
-        {filteredPickedJobs.length === 0 && !searchQuery && activeTab === 'high-fee' && (
-          <div className="text-center py-8 text-slate-500">
-            <DollarSign size={48} className="mx-auto mb-3 opacity-30" />
-            <p>Fee 40万円以上の案件がありません</p>
-          </div>
-        )}
-        
-        {filteredPickedJobs.length === 0 && !searchQuery && activeTab === 'placement-history' && (
-          <div className="text-center py-8 text-slate-500">
-            <TrendingUp size={48} className="mx-auto mb-3 opacity-30" />
-            <p>入社実績のある案件がありません</p>
-          </div>
-        )}
-      </div>
-    </div>
 
-    {/* 分岐フロー開始ボタン */}
-    <div className="bg-white rounded-xl shadow-sm p-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-bold text-slate-800">次のステップ: 分岐フロー分析</h3>
-          <p className="text-sm text-slate-500">
-            選択した <span className="font-bold text-indigo-600">{selectedJobIds.size}件</span> を詳細分析します
-            {selectedJobIds.size > 100 && <span className="text-amber-600">（上位100件のみ）</span>}
-          </p>
-        </div>
-        <button 
-          onClick={startFlowAnalysis}
-          disabled={selectedJobIds.size === 0}
-          className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all ${
-            selectedJobIds.size === 0
-              ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-              : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg'
-          }`}
-        >
-          <Target size={20} />分岐フロー分析を開始
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-
-        {/* Step 3: 分岐フロー分析 */}
-{mainStep === 3 && showAnalysis && (
-  <div className="space-y-4">
-    <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl shadow-lg p-4 text-white">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-bold text-lg">📊 マッチング状況（{jobs.length}件分析）</h3>
-        <div className="flex gap-2">
-          <button onClick={() => { setMainStep(2); setShowAnalysis(false); }}
-            className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-sm">案件選択に戻る</button>
-          <button onClick={() => { setMainStep(1); setShowAnalysis(false); }}
-            className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-sm">条件を変更</button>
-        </div>
-      </div>
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-emerald-500 bg-opacity-40 rounded p-3 text-center">
-          <div className="font-bold text-3xl">{immediateMatches.length}</div>
-          <div className="text-sm">すぐ紹介可能</div>
-        </div>
-        <div className="bg-amber-500 bg-opacity-40 rounded p-3 text-center">
-          <div className="font-bold text-3xl">{possibleMatches.length}</div>
-          <div className="text-sm">条件確認必要</div>
-        </div>
-        <div className="bg-red-500 bg-opacity-40 rounded p-3 text-center">
-          <div className="font-bold text-3xl">{impossibleMatches.length}</div>
-          <div className="text-sm">紹介不可</div>
-        </div>
-      </div>
-    </div>
-
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      {/* マッチング結果リスト */}
-      <div className="space-y-4">
-        {immediateMatches.length > 0 && (
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-            <button onClick={() => toggleConditionExpansion('immediate')}
-              className="w-full flex items-center justify-between p-3 bg-emerald-50 hover:bg-emerald-100">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="text-emerald-600" size={20} />
-                <span className="font-bold text-emerald-800">✅ すぐ紹介可能 ({immediateMatches.length}件)</span>
-              </div>
-              {expandedConditions.has('immediate') ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-            </button>
-            {expandedConditions.has('immediate') && (
-              <div className="divide-y divide-slate-100 max-h-60 overflow-y-auto">
-                {immediateMatches.map(result => (
-                  <div key={result.job.id}
-                    className={`p-3 hover:bg-slate-50 cursor-pointer ${selectedJobForTracking === result.job.id ? 'bg-purple-50 border-l-4 border-purple-500' : ''}`}
-                    onClick={() => { setSelectedJobForTracking(result.job.id); setSelectedJob(result.job); }}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <CompanyRankBadge rank={result.job.companyRank} />
-                          <span className="font-bold text-slate-800 truncate text-sm">{result.job.name}</span>
-                        </div>
-                        <div className="text-xs text-slate-500 mt-1">
-                          {result.job.estimatedTime && `🚗${result.job.estimatedTime}分`} | 月収:{result.job.monthlySalary}万 | 欠員:{result.job.vacancy}名
-                        </div>
-                      </div>
-                      <div className="text-emerald-600 font-bold">💰{result.job.fee}万</div>
-                    </div>
+            {/* 検索・選択コントロール */}
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <div className="flex flex-col md:flex-row md:items-center gap-4">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="案件名、会社名、住所で検索..."
+                      className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                    {searchQuery && (
+                      <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                        <X size={18} />
+                      </button>
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+                  {searchQuery && <p className="text-xs text-slate-500 mt-1">{filteredPickedJobs.length}件がヒット</p>}
+                </div>
 
-        {possibleMatches.length > 0 && (
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-            <button onClick={() => toggleConditionExpansion('possible')}
-              className="w-full flex items-center justify-between p-3 bg-amber-50 hover:bg-amber-100">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="text-amber-600" size={20} />
-                <span className="font-bold text-amber-800">⚠️ 条件確認必要 ({possibleMatches.length}件)</span>
+                <div className="flex flex-wrap gap-2">
+                  {searchQuery ? (
+                    <>
+                      <button onClick={selectAllFiltered} className="flex items-center gap-1 px-3 py-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg text-sm font-medium transition">
+                        <CheckSquare size={16} />検索結果を全選択
+                      </button>
+                      <button onClick={deselectAllFiltered} className="flex items-center gap-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition">
+                        <Square size={16} />検索結果の選択解除
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button onClick={selectAll} className="flex items-center gap-1 px-3 py-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg text-sm font-medium transition">
+                        <CheckSquare size={16} />全選択
+                      </button>
+                      <button onClick={deselectAll} className="flex items-center gap-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition">
+                        <Square size={16} />全解除
+                      </button>
+                    </>
+                  )}
+
+                  <button
+                    onClick={() => setShowFilterOptions(!showFilterOptions)}
+                    className="flex items-center gap-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition"
+                  >
+                    <Sliders size={16} />フィルター
+                  </button>
+
+                  <button onClick={startFlowAnalysis} disabled={selectedJobIds.size === 0}
+                    className={selectedJobIds.size === 0 ? 'flex items-center gap-2 px-4 py-2 bg-slate-200 text-slate-400 rounded-lg text-sm font-bold cursor-not-allowed' : 'flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold transition shadow-md'}>
+                    <BarChart3 size={16} />分岐フロー分析 ({selectedJobIds.size})
+                  </button>
+                </div>
               </div>
-              {expandedConditions.has('possible') ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-            </button>
-            {expandedConditions.has('possible') && (
-              <div className="divide-y divide-slate-100 max-h-60 overflow-y-auto">
-                {possibleMatches.map(result => (
-                  <div key={result.job.id}
-                    className={`p-3 hover:bg-slate-50 cursor-pointer ${selectedJobForTracking === result.job.id ? 'bg-purple-50 border-l-4 border-purple-500' : ''}`}
-                    onClick={() => { setSelectedJobForTracking(result.job.id); setSelectedJob(result.job); }}>
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <CompanyRankBadge rank={result.job.companyRank} />
-                          <span className="font-bold text-slate-800 truncate text-sm">{result.job.name}</span>
-                        </div>
+
+              {showFilterOptions && (
+                <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-bold text-slate-700">並べ替え</h3>
+                    <button onClick={() => setShowFilterOptions(false)} className="text-slate-400 hover:text-slate-600">
+                      <X size={18} />
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {[
+                      { value: 'score', label: '📊 スコア順', icon: TrendingUp },
+                      { value: 'fee', label: '💰 Fee順', icon: DollarSign },
+                      { value: 'distance', label: '📍 距離順', icon: Navigation },
+                      { value: 'vacancy', label: '👥 欠員数順', icon: Users },
+                      { value: 'salary', label: '💵 月収順', icon: TrendingUp },
+                      { value: 'placement', label: '📈 入社実績順', icon: Award }
+                    ].map(sort => (
+                      <button
+                        key={sort.value}
+                        onClick={() => setSortBy(sort.value)}
+                        className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                          sortBy === sort.value
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                        }`}
+                      >
+                        <sort.icon size={14} />
+                        {sort.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-bold text-slate-700">派遣会社フィルター</h3>
+                      <div className="flex gap-2">
+                        <button onClick={selectAllCompanies} className="text-xs text-indigo-600 hover:text-indigo-800">全選択</button>
+                        <button onClick={deselectAllCompanies} className="text-xs text-slate-600 hover:text-slate-800">全解除</button>
                       </div>
-                      <div className="text-amber-600 font-bold">💰{result.job.fee}万</div>
                     </div>
-                    <div className="bg-amber-50 rounded p-2 text-xs">
-                      {result.relaxableFailedConditions.map(cond => (
-                        <div key={cond.id} className="flex items-center gap-2">
-                          <input type="checkbox" checked={checkedItems[`${result.job.id}-${cond.id}`] || false}
-                            onChange={(e) => { e.stopPropagation(); toggleCheckItem(result.job.id, cond.id); }} />
-                          <span>{cond.question}</span>
-                        </div>
+                    <div className="flex flex-wrap gap-2">
+                      {uniqueCompanies.map(company => (
+                        <button
+                          key={company}
+                          onClick={() => toggleCompanySelection(company)}
+                          className={`px-3 py-1.5 rounded-lg text-sm transition ${
+                            selectedCompanies.has(company)
+                              ? 'bg-indigo-600 text-white'
+                              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                          }`}
+                        >
+                          {company}
+                          <span className="ml-1 text-xs opacity-75">
+                            ({pickedJobs.filter(j => j.company === company).length})
+                          </span>
+                        </button>
                       ))}
                     </div>
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* タブナビゲーション */}
+            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+              <div className="flex border-b border-slate-200 overflow-x-auto">
+                {[
+                  { key: 'all', label: '全件', count: pickedJobs.length },
+                  { key: 'day-shift', label: '日勤のみ', count: pickedJobs.filter(j => j.shiftWork === '日勤').length },
+                  { key: 'other-shift', label: '交替制・夜勤', count: pickedJobs.filter(j => j.shiftWork !== '日勤').length },
+                  { key: 'high-fee', label: '💎 Fee40万+', count: pickedJobs.filter(j => j.fee >= 40).length },
+                  { key: 'placement-history', label: '📈 入社実績あり', count: pickedJobs.filter(j => ((j.placement2025 || 0) + (j.placement2024 || 0)) > 0).length }
+                ].map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key)}
+                    className={`px-6 py-3 font-medium transition-all whitespace-nowrap ${
+                      activeTab === tab.key
+                        ? 'bg-indigo-50 text-indigo-700 border-b-2 border-indigo-600'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {tab.label}
+                    <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
+                      activeTab === tab.key ? 'bg-indigo-200 text-indigo-800' : 'bg-slate-200 text-slate-600'
+                    }`}>
+                      {tab.count}
+                    </span>
+                  </button>
                 ))}
               </div>
-            )}
-          </div>
-        )}
 
-        {impossibleMatches.length > 0 && (
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-            <button onClick={() => toggleConditionExpansion('impossible')}
-              className="w-full flex items-center justify-between p-3 bg-red-50 hover:bg-red-100">
-              <div className="flex items-center gap-2">
-                <XCircle className="text-red-600" size={20} />
-                <span className="font-bold text-red-800">❌ 紹介不可 ({impossibleMatches.length}件)</span>
-              </div>
-              {expandedConditions.has('impossible') ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-            </button>
-            {expandedConditions.has('impossible') && (
-              <div className="divide-y divide-slate-100 max-h-40 overflow-y-auto">
-                {impossibleMatches.slice(0, 10).map(result => (
-                  <div key={result.job.id} className="p-3 opacity-60">
-                    <span className="text-sm text-slate-700">{result.job.name}</span>
-                    <div className="text-xs text-red-600">{result.nonRelaxableFailedConditions.map(c => c.reason).join(' / ')}</div>
+              {/* 🗺️ リスト/地図切り替え（新規追加） */}
+              <div className="bg-slate-50 border-b border-slate-200 px-4 py-3 flex items-center justify-between">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setViewMode('list')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                      viewMode === 'list'
+                        ? 'bg-indigo-600 text-white shadow-md'
+                        : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                  >
+                    <List size={18} />
+                    リスト表示 ({filteredPickedJobs.length}件)
+                  </button>
+                  <button
+                    onClick={() => setViewMode('map')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                      viewMode === 'map'
+                        ? 'bg-indigo-600 text-white shadow-md'
+                        : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                  >
+                    <Map size={18} />
+                    地図表示 ({filteredPickedJobs.filter(j => j.lat && j.lng).length}件)
+                  </button>
+                </div>
+
+                {viewMode === 'map' && (
+                  <div className="text-sm text-slate-600 flex items-center gap-2">
+                    <Info size={16} />
+                    マーカーをクリックして詳細を確認
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* フローツリー */}
-      <div className="bg-white rounded-xl shadow-sm p-4">
-        <div className="flex justify-between items-center mb-3">
-          <h2 className="font-bold text-indigo-600 flex items-center"><Target className="mr-2" size={20} />フローツリー図</h2>
-          <div className="flex items-center space-x-1 bg-slate-100 rounded-lg p-1">
-            <button onClick={handleZoomOut} className="p-1.5 hover:bg-slate-200 rounded"><ZoomOut size={16} /></button>
-            <span className="text-xs font-semibold px-2">{Math.round(zoom * 100)}%</span>
-            <button onClick={handleZoomIn} className="p-1.5 hover:bg-slate-200 rounded"><ZoomIn size={16} /></button>
-            <button onClick={handleFitToScreen} className="p-1.5 hover:bg-slate-200 rounded"><Maximize2 size={16} /></button>
-          </div>
-        </div>
-        <div ref={treeContainerRef} className="overflow-auto border border-gray-200 rounded-lg bg-gradient-to-br from-gray-50 to-blue-50" style={{ height: '450px' }}>
-          <div style={{ width: `${treeContentSize.width}px`, height: `${treeContentSize.height}px`, position: 'relative' }}>
-            <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', position: 'absolute', width: `${treeContentSize.width}px`, height: `${treeContentSize.height}px` }}>
-              <canvas ref={canvasRef} className="absolute top-0 left-0" style={{ zIndex: 1 }} />
-              <div style={{ zIndex: 10, position: 'relative' }}>
-                {flowTree && Object.keys(nodePositions).length > 0 && (
-                  <TreeNodeRenderer node={flowTree} nodePositions={nodePositions} selectedJobForTracking={selectedJobForTracking}
-                    getPathToJob={getPathToJob} setHoveredNode={setHoveredNode} />
                 )}
               </div>
+
+              {/* リスト表示 */}
+              {viewMode === 'list' && (
+                <div className="p-4">
+                  {filteredPickedJobs.length === 0 ? (
+                    <div className="text-center py-12 text-slate-400">
+                      <Search size={48} className="mx-auto mb-3 opacity-50" />
+                      <p>条件に一致する案件がありません</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {filteredPickedJobs.map(job => (
+                        <div
+                          key={job.id}
+                          className={`border-2 rounded-xl p-4 transition-all cursor-pointer ${
+                            selectedJobIds.has(job.id)
+                              ? 'border-indigo-500 bg-indigo-50'
+                              : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md'
+                          }`}
+                          onClick={() => toggleJobSelection(job.id)}
+                        >
+                          <div className="flex items-start gap-4">
+                            <div className="flex-shrink-0 pt-1">
+                              <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition ${
+                                selectedJobIds.has(job.id)
+                                  ? 'bg-indigo-600 border-indigo-600'
+                                  : 'border-slate-300 bg-white'
+                              }`}>
+                                {selectedJobIds.has(job.id) && <Check size={16} className="text-white" />}
+                              </div>
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-3 mb-2">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <CompanyRankBadge rank={job.companyRank} />
+                                    <span className="text-sm text-slate-600">{job.company}</span>
+                                  </div>
+                                  <h3 className="font-bold text-slate-800 text-lg leading-tight">{job.name}</h3>
+                                  <p className="text-sm text-slate-500 mt-1">{job.prefecture} {job.address}</p>
+                                </div>
+
+                                <div className="flex flex-col gap-2 items-end flex-shrink-0">
+                                  {job.pickupScore !== undefined && (
+                                    <div className="flex items-center gap-1 px-3 py-1.5 bg-indigo-100 rounded-lg">
+                                      <Sparkles size={16} className="text-indigo-600" />
+                                      <span className="font-bold text-indigo-700">{job.pickupScore}点</span>
+                                    </div>
+                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedJob(job);
+                                    }}
+                                    className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition"
+                                  >
+                                    <Eye size={14} />
+                                    詳細
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+                                <div className="bg-purple-50 rounded-lg p-2 border border-purple-200">
+                                  <div className="text-xs text-purple-600 mb-0.5">💰 Fee</div>
+                                  <div className="font-bold text-purple-700">{job.fee}万円</div>
+                                </div>
+                                <div className="bg-blue-50 rounded-lg p-2 border border-blue-200">
+                                  <div className="text-xs text-blue-600 mb-0.5">💵 月収</div>
+                                  <div className="font-bold text-blue-700">{job.monthlySalary}万円</div>
+                                </div>
+                                <div className="bg-emerald-50 rounded-lg p-2 border border-emerald-200">
+                                  <div className="text-xs text-emerald-600 mb-0.5">👥 欠員</div>
+                                  <div className="font-bold text-emerald-700">{(job.vacancy || 0) + (job.nextMonthVacancy || 0)}名</div>
+                                </div>
+                                <div className="bg-amber-50 rounded-lg p-2 border border-amber-200">
+                                  <div className="text-xs text-amber-600 mb-0.5">
+                                    {job.distance ? '🚗 通勤' : '📍 勤務形態'}
+                                  </div>
+                                  <div className="font-bold text-amber-700">
+                                    {job.estimatedTime ? `${job.estimatedTime}分` : job.shiftWork || '-'}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {job.distance && (
+                                <div className="mt-2 text-xs text-slate-600 flex items-center gap-4">
+                                  <span>📍 {job.distance.toFixed(1)}km</span>
+                                  {job.shiftWork && <span>⏰ {job.shiftWork}</span>}
+                                </div>
+                              )}
+
+                              {((job.placement2025 || 0) + (job.placement2024 || 0) > 0) && (
+                                <div className="mt-2 inline-flex items-center gap-1 px-2 py-1 bg-teal-50 text-teal-700 rounded text-xs">
+                                  <Award size={12} />
+                                  入社実績: {(job.placement2025 || 0) + (job.placement2024 || 0)}名
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 地図表示（新規追加） */}
+              {viewMode === 'map' && (
+                <div className="p-4">
+                  <AllJobsMapView 
+                    jobs={filteredPickedJobs}
+                    seekerLocation={seekerConditions.address}
+                    onJobClick={(job) => setSelectedJob(job)}
+                  />
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
+        )}
+
+        {/* Step 3: 分岐フロー分析 */}
+        {mainStep === 3 && showAnalysis && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold text-slate-800">分岐フロー分析結果</h2>
+                <button onClick={() => { setMainStep(2); setShowAnalysis(false); }} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition">
+                  ← ピックアップに戻る
+                </button>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 mb-6">
+                <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-4 text-center">
+                  <div className="text-3xl font-bold text-emerald-700">{immediateMatches.length}</div>
+                  <div className="text-sm text-emerald-600 mt-1">✅ 即時紹介可能</div>
+                </div>
+                <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4 text-center">
+                  <div className="text-3xl font-bold text-amber-700">{possibleMatches.length}</div>
+                  <div className="text-sm text-amber-600 mt-1">⚠️ 条件緩和で紹介可</div>
+                </div>
+                <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 text-center">
+                  <div className="text-3xl font-bold text-red-700">{impossibleMatches.length}</div>
+                  <div className="text-sm text-red-600 mt-1">❌ 紹介不可</div>
+                </div>
+              </div>
+
+              {immediateMatches.length > 0 && (
+                <div className="mb-6">
+                  <button
+                    onClick={() => toggleConditionExpansion('immediate')}
+                    className="w-full flex items-center justify-between p-4 bg-emerald-50 hover:bg-emerald-100 rounded-lg border-2 border-emerald-200 transition"
+                  >
+                    <div className="flex items-center gap-3">
+                      <CheckCircle className="text-emerald-600" size={24} />
+                      <span className="font-bold text-emerald-800 text-lg">即時紹介可能な案件 ({immediateMatches.length}件)</span>
+                    </div>
+                    {expandedConditions.has('immediate') ? <ChevronUp className="text-emerald-600" /> : <ChevronDown className="text-emerald-600" />}
+                  </button>
+
+                  {expandedConditions.has('immediate') && (
+                    <div className="mt-3 space-y-3 pl-4">
+                      {immediateMatches.map(result => (
+                        <div key={result.job.id} className="bg-white border-2 border-emerald-200 rounded-lg p-4">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <CompanyRankBadge rank={result.job.companyRank} />
+                                <span className="text-sm text-slate-600">{result.job.company}</span>
+                              </div>
+                              <h3 className="font-bold text-slate-800">{result.job.name}</h3>
+                              <p className="text-sm text-slate-500">{result.job.prefecture} {result.job.address}</p>
+                            </div>
+                            <div className="flex flex-col gap-2 items-end">
+                              <div className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-lg font-bold">
+                                {result.score}点
+                              </div>
+                              <button onClick={() => setSelectedJob(result.job)} className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">詳細 →</button>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-4 gap-2 text-sm">
+                            <div className="bg-purple-50 rounded p-2 text-center border border-purple-100">
+                              <div className="text-xs text-purple-600">Fee</div>
+                              <div className="font-bold text-purple-700">{result.job.fee}万</div>
+                            </div>
+                            <div className="bg-blue-50 rounded p-2 text-center border border-blue-100">
+                              <div className="text-xs text-blue-600">月収</div>
+                              <div className="font-bold text-blue-700">{result.job.monthlySalary}万</div>
+                            </div>
+                            <div className="bg-emerald-50 rounded p-2 text-center border border-emerald-100">
+                              <div className="text-xs text-emerald-600">欠員</div>
+                              <div className="font-bold text-emerald-700">{result.job.vacancy || 0}名</div>
+                            </div>
+                            <div className="bg-amber-50 rounded p-2 text-center border border-amber-100">
+                              <div className="text-xs text-amber-600">通勤</div>
+                              <div className="font-bold text-amber-700">{result.job.estimatedTime || '-'}分</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {possibleMatches.length > 0 && (
+                <div className="mb-6">
+                  <button
+                    onClick={() => toggleConditionExpansion('possible')}
+                    className="w-full flex items-center justify-between p-4 bg-amber-50 hover:bg-amber-100 rounded-lg border-2 border-amber-200 transition"
+                  >
+                    <div className="flex items-center gap-3">
+                      <AlertTriangle className="text-amber-600" size={24} />
+                      <span className="font-bold text-amber-800 text-lg">条件緩和で紹介可能な案件 ({possibleMatches.length}件)</span>
+                    </div>
+                    {expandedConditions.has('possible') ? <ChevronUp className="text-amber-600" /> : <ChevronDown className="text-amber-600" />}
+                  </button>
+
+                  {expandedConditions.has('possible') && (
+                    <div className="mt-3 space-y-3 pl-4">
+                      {possibleMatches.map(result => (
+                        <div key={result.job.id} className="bg-white border-2 border-amber-200 rounded-lg p-4">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <CompanyRankBadge rank={result.job.companyRank} />
+                                <span className="text-sm text-slate-600">{result.job.company}</span>
+                              </div>
+                              <h3 className="font-bold text-slate-800">{result.job.name}</h3>
+                              <p className="text-sm text-slate-500">{result.job.prefecture} {result.job.address}</p>
+                            </div>
+                            <div className="flex flex-col gap-2 items-end">
+                              <div className="px-3 py-1 bg-amber-100 text-amber-700 rounded-lg font-bold">
+                                {result.score}点
+                              </div>
+                              <button onClick={() => setSelectedJob(result.job)} className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">詳細 →</button>
+                            </div>
+                          </div>
+
+                          <div className="bg-amber-50 rounded-lg p-3 mb-3">
+                            <h4 className="font-bold text-amber-800 text-sm mb-2">⚠️ 確認が必要な条件:</h4>
+                            <div className="space-y-2">
+                              {result.relaxableFailedConditions.map(cond => (
+                                <div key={cond.id} className="flex items-start gap-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!checkedItems[`${result.job.id}-${cond.id}`]}
+                                    onChange={() => toggleCheckItem(result.job.id, cond.id)}
+                                    className="mt-1 w-4 h-4 text-amber-600"
+                                  />
+                                  <div className="flex-1">
+                                    <p className="font-medium text-amber-800 text-sm">{cond.name}: {cond.question}</p>
+                                    <p className="text-xs text-amber-600 mt-0.5">
+                                      現在: {cond.current} → 案件要件: {cond.required}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-4 gap-2 text-sm">
+                            <div className="bg-purple-50 rounded p-2 text-center border border-purple-100">
+                              <div className="text-xs text-purple-600">Fee</div>
+                              <div className="font-bold text-purple-700">{result.job.fee}万</div>
+                            </div>
+                            <div className="bg-blue-50 rounded p-2 text-center border border-blue-100">
+                              <div className="text-xs text-blue-600">月収</div>
+                              <div className="font-bold text-blue-700">{result.job.monthlySalary}万</div>
+                            </div>
+                            <div className="bg-emerald-50 rounded p-2 text-center border border-emerald-100">
+                              <div className="text-xs text-emerald-600">欠員</div>
+                              <div className="font-bold text-emerald-700">{result.job.vacancy || 0}名</div>
+                            </div>
+                            <div className="bg-amber-50 rounded p-2 text-center border border-amber-100">
+                              <div className="text-xs text-amber-600">通勤</div>
+                              <div className="font-bold text-amber-700">{result.job.estimatedTime || '-'}分</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {impossibleMatches.length > 0 && (
+                <div>
+                  <button
+                    onClick={() => toggleConditionExpansion('impossible')}
+                    className="w-full flex items-center justify-between p-4 bg-red-50 hover:bg-red-100 rounded-lg border-2 border-red-200 transition"
+                  >
+                    <div className="flex items-center gap-3">
+                      <XCircle className="text-red-600" size={24} />
+                      <span className="font-bold text-red-800 text-lg">紹介不可能な案件 ({impossibleMatches.length}件)</span>
+                    </div>
+                    {expandedConditions.has('impossible') ? <ChevronUp className="text-red-600" /> : <ChevronDown className="text-red-600" />}
+                  </button>
+
+                  {expandedConditions.has('impossible') && (
+                    <div className="mt-3 space-y-3 pl-4">
+                      {impossibleMatches.map(result => (
+                        <div key={result.job.id} className="bg-white border-2 border-red-200 rounded-lg p-4 opacity-75">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <CompanyRankBadge rank={result.job.companyRank} />
+                                <span className="text-sm text-slate-600">{result.job.company}</span>
+                              </div>
+                              <h3 className="font-bold text-slate-800">{result.job.name}</h3>
+                              <p className="text-sm text-slate-500">{result.job.prefecture} {result.job.address}</p>
+                            </div>
+                            <button onClick={() => setSelectedJob(result.job)} className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">詳細 →</button>
+                          </div>
+
+                          <div className="bg-red-50 rounded-lg p-3">
+                            <h4 className="font-bold text-red-800 text-sm mb-2">❌ 絶対条件で不適合:</h4>
+                            <div className="space-y-1">
+                              {result.nonRelaxableFailedConditions.map(cond => (
+                                <p key={cond.id} className="text-sm text-red-700">• {cond.name}: {cond.reason}</p>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </main>
 
       {isLoading && <LoadingSpinner message={loadingMessage} />}
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      {selectedJob && <JobDetailModal job={selectedJob} onClose={() => setSelectedJob(null)} seekerConditions={seekerConditions} />}
-    </div>
-  );
-};
-
-const TreeNodeRenderer = ({ node, nodePositions, selectedJobForTracking, getPathToJob, setHoveredNode }) => {
-  const pos = nodePositions[node.id];
-  if (!pos) return null;
-
-  const trackingPath = selectedJobForTracking ? getPathToJob(node, selectedJobForTracking) : null;
-  const isOnTrackingPath = trackingPath?.includes(node.id);
-
-  const colorSchemes = {
-    start: { bg: 'bg-indigo-50', border: 'border-indigo-500', header: 'bg-indigo-100' },
-    pass: { bg: 'bg-emerald-50', border: 'border-emerald-500', header: 'bg-emerald-100' },
-    relax: { bg: 'bg-amber-50', border: 'border-amber-500', header: 'bg-amber-100' },
-    'relax-accepted': { bg: 'bg-lime-50', border: 'border-lime-500', header: 'bg-lime-100' },
-    'relax-rejected': { bg: 'bg-orange-50', border: 'border-orange-500', header: 'bg-orange-100' },
-    exclude: { bg: 'bg-red-50', border: 'border-red-500', header: 'bg-red-100' },
-    success: { bg: 'bg-emerald-50', border: 'border-emerald-500', header: 'bg-emerald-100' },
-    fail: { bg: 'bg-gray-100', border: 'border-gray-400', header: 'bg-gray-200' }
-  };
-
-  let colors = colorSchemes[node.type] || colorSchemes.start;
-  if (isOnTrackingPath) colors = { ...colors, border: 'border-purple-600' };
-
-  const fees = (node.jobs || []).map(j => parseInt(j.fee) || 0).filter(f => f > 0);
-  const avgFee = fees.length > 0 ? Math.round(fees.reduce((a, b) => a + b, 0) / fees.length) : 0;
-
-  return (
-    <>
-      <div className={`absolute ${colors.bg} border-2 ${colors.border} rounded-lg shadow-md hover:shadow-xl cursor-pointer transition-all`}
-        style={{ left: `${pos.x}px`, top: `${pos.y}px`, width: '200px', zIndex: isOnTrackingPath ? 50 : 20 }}
-        onMouseEnter={() => setHoveredNode(node.id)}
-        onMouseLeave={() => setHoveredNode(null)}>
-        <div className={`${colors.header} px-2 py-1 rounded-t-lg border-b ${colors.border}`}>
-          <div className="font-bold text-xs text-center">
-            {node.type === 'start' && '🚀 START'}
-            {node.type === 'pass' && `✅ ${node.condition}`}
-            {node.type === 'relax' && `⚠️ ${node.condition}`}
-            {node.type === 'relax-accepted' && '✔️ 緩和OK'}
-            {node.type === 'relax-rejected' && '✘ 緩和NG'}
-            {node.type === 'exclude' && `❌ ${node.condition}`}
-            {node.type === 'success' && '🎉 紹介可能'}
-            {node.type === 'fail' && '❌ 除外'}
-          </div>
-        </div>
-        <div className="p-2 text-xs">
-          {node.jobs && node.jobs.length > 0 && (
-            <>
-              <div className="font-bold text-center mb-1">
-                {node.jobs.length}件
-              </div>
-              {avgFee > 0 && (
-                <div className="text-center text-gray-600">
-                  平均Fee: {avgFee}万
-                </div>
-              )}
-            </>
-          )}
-          {node.excludedJobs && node.excludedJobs.length > 0 && (
-            <div className="text-center text-red-600 font-semibold">
-              除外: {node.excludedJobs.length}件
-            </div>
-          )}
-        </div>
-      </div>
-
-      {node.children?.map(child => (
-        <TreeNodeRenderer
-          key={child.id}
-          node={child}
-          nodePositions={nodePositions}
-          selectedJobForTracking={selectedJobForTracking}
-          getPathToJob={getPathToJob}
-          setHoveredNode={setHoveredNode}
+      {selectedJob && (
+        <JobDetailModal 
+          job={selectedJob} 
+          onClose={() => setSelectedJob(null)} 
+          seekerConditions={seekerConditions}
+          allJobs={pickedJobs}
         />
-      ))}
-    </>
+      )}
+    </div>
   );
 };
 
