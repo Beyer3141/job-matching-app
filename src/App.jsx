@@ -596,124 +596,155 @@ const ScoreBreakdown = ({ breakdown }) => (
 
 const JobMapView = ({ selectedJob, nearbyJobs, seekerLocation, onJobClick }) => {
   const mapRef = useRef(null);
-  const isGoogleMapsLoaded = useGoogleMaps();
+  const mapInstanceRef = useRef(null);
+  const { isLoaded, error } = useGoogleMaps();
 
   useEffect(() => {
-    if (!isGoogleMapsLoaded || !mapRef.current || !selectedJob.lat) return;
-
-    const googleMap = new window.google.maps.Map(mapRef.current, {
-      center: { lat: selectedJob.lat, lng: selectedJob.lng },
-      zoom: 11,
-      mapTypeControl: true,
-      streetViewControl: false,
-    });
-
-    const mainMarker = new window.google.maps.Marker({
-      position: { lat: selectedJob.lat, lng: selectedJob.lng },
-      map: googleMap,
-      icon: {
-        url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
-        scaledSize: new window.google.maps.Size(50, 50),
-      },
-      title: selectedJob.name,
-      zIndex: 1000,
-    });
-
-    const mainInfoWindow = new window.google.maps.InfoWindow({
-      content: `
-        <div style="padding: 8px; max-width: 250px;">
-          <h3 style="margin: 0 0 8px 0; color: #DC2626; font-weight: bold;">📍 選択中の案件</h3>
-          <p style="margin: 4px 0; font-weight: bold;">${selectedJob.name}</p>
-          <p style="margin: 4px 0; font-size: 12px; color: #64748B;">${selectedJob.company}</p>
-          <p style="margin: 4px 0;"><strong>💰 Fee: ${selectedJob.fee}万円</strong></p>
-          <p style="margin: 4px 0; font-size: 12px;">月収: ${selectedJob.monthlySalary}万円</p>
-          ${selectedJob.estimatedTime ? `<p style="margin: 4px 0; font-size: 12px;">🚗 通勤: 約${selectedJob.estimatedTime}分</p>` : ''}
-        </div>
-      `
-    });
-
-    mainMarker.addListener('click', () => {
-      mainInfoWindow.open(googleMap, mainMarker);
-    });
-
-    if (seekerLocation?.lat && seekerLocation?.lng) {
-      const homeMarker = new window.google.maps.Marker({
-        position: { lat: seekerLocation.lat, lng: seekerLocation.lng },
-        map: googleMap,
-        icon: {
-          url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
-          scaledSize: new window.google.maps.Size(40, 40),
-        },
-        title: '自宅',
-        zIndex: 999,
-      });
-
-      const homeInfoWindow = new window.google.maps.InfoWindow({
-        content: `
-          <div style="padding: 8px;">
-            <h3 style="margin: 0; color: #059669;">🏠 自宅</h3>
-            <p style="margin: 4px 0; font-size: 12px;">${seekerLocation.prefecture || ''}${seekerLocation.city || ''}</p>
-          </div>
-        `
-      });
-
-      homeMarker.addListener('click', () => {
-        homeInfoWindow.open(googleMap, homeMarker);
-      });
-
-      new window.google.maps.Polyline({
-        path: [
-          { lat: seekerLocation.lat, lng: seekerLocation.lng },
-          { lat: selectedJob.lat, lng: selectedJob.lng }
-        ],
-        geodesic: true,
-        strokeColor: '#4F46E5',
-        strokeOpacity: 0.6,
-        strokeWeight: 2,
-        map: googleMap,
-      });
+    if (!isLoaded || error || !mapRef.current || !selectedJob.lat) {
+      return;
     }
 
-    nearbyJobs.forEach(job => {
-      const marker = new window.google.maps.Marker({
-        position: { lat: job.lat, lng: job.lng },
-        map: googleMap,
-        icon: {
-          url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
-          scaledSize: new window.google.maps.Size(32, 32),
-        },
-        title: job.name,
-        label: {
-          text: `${job.fee}万`,
-          color: 'white',
-          fontSize: '11px',
-          fontWeight: 'bold',
-        },
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current = null;
+    }
+
+    if (!window.google?.maps?.Map) {
+      console.error('Google Maps API is not fully loaded');
+      return;
+    }
+
+    try {
+      const googleMap = new window.google.maps.Map(mapRef.current, {
+        center: { lat: Number(selectedJob.lat), lng: Number(selectedJob.lng) },
+        zoom: 11,
+        mapTypeControl: true,
+        streetViewControl: false,
       });
 
-      const infoWindow = new window.google.maps.InfoWindow({
+      mapInstanceRef.current = googleMap;
+
+      const mainMarker = new window.google.maps.Marker({
+        position: { lat: Number(selectedJob.lat), lng: Number(selectedJob.lng) },
+        map: googleMap,
+        icon: {
+          url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
+          scaledSize: new window.google.maps.Size(50, 50),
+        },
+        title: selectedJob.name,
+        zIndex: 1000,
+      });
+
+      const mainInfoWindow = new window.google.maps.InfoWindow({
         content: `
           <div style="padding: 8px; max-width: 250px;">
-            <p style="margin: 0 0 4px 0; font-weight: bold; font-size: 13px;">${job.name}</p>
-            <p style="margin: 4px 0; font-size: 11px; color: #64748B;">${job.company}</p>
-            <div style="margin: 8px 0; padding: 6px; background: #F1F5F9; border-radius: 4px;">
-              <p style="margin: 2px 0; font-size: 12px;"><strong>💰 Fee: ${job.fee}万円</strong></p>
-              <p style="margin: 2px 0; font-size: 11px;">月収: ${job.monthlySalary}万円</p>
-              <p style="margin: 2px 0; font-size: 11px;">欠員: ${job.vacancy || 0}名</p>
-              <p style="margin: 2px 0; font-size: 11px; color: #6366F1;">📍 ${job.distanceFromCenter?.toFixed(1)}km</p>
-            </div>
+            <h3 style="margin: 0 0 8px 0; color: #DC2626; font-weight: bold;">📍 選択中の案件</h3>
+            <p style="margin: 4px 0; font-weight: bold;">${selectedJob.name}</p>
+            <p style="margin: 4px 0; font-size: 12px; color: #64748B;">${selectedJob.company}</p>
+            <p style="margin: 4px 0;"><strong>💰 Fee: ${selectedJob.fee}万円</strong></p>
+            <p style="margin: 4px 0; font-size: 12px;">月収: ${selectedJob.monthlySalary}万円</p>
+            ${selectedJob.estimatedTime ? `<p style="margin: 4px 0; font-size: 12px;">🚗 通勤: 約${selectedJob.estimatedTime}分</p>` : ''}
           </div>
         `
       });
 
-      marker.addListener('click', () => {
-        infoWindow.open(googleMap, marker);
+      mainMarker.addListener('click', () => {
+        mainInfoWindow.open(googleMap, mainMarker);
       });
-    });
 
-  }, [isGoogleMapsLoaded, selectedJob, nearbyJobs, seekerLocation]);
+      if (seekerLocation?.lat && seekerLocation?.lng) {
+        const homeMarker = new window.google.maps.Marker({
+          position: { lat: Number(seekerLocation.lat), lng: Number(seekerLocation.lng) },
+          map: googleMap,
+          icon: {
+            url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
+            scaledSize: new window.google.maps.Size(40, 40),
+          },
+          title: '自宅',
+          zIndex: 999,
+        });
 
-  if (!isGoogleMapsLoaded) {
+        const homeInfoWindow = new window.google.maps.InfoWindow({
+          content: `
+            <div style="padding: 8px;">
+              <h3 style="margin: 0; color: #059669;">🏠 自宅</h3>
+              <p style="margin: 4px 0; font-size: 12px;">${seekerLocation.prefecture || ''}${seekerLocation.city || ''}</p>
+            </div>
+          `
+        });
+
+        homeMarker.addListener('click', () => {
+          homeInfoWindow.open(googleMap, homeMarker);
+        });
+
+        new window.google.maps.Polyline({
+          path: [
+            { lat: Number(seekerLocation.lat), lng: Number(seekerLocation.lng) },
+            { lat: Number(selectedJob.lat), lng: Number(selectedJob.lng) }
+          ],
+          geodesic: true,
+          strokeColor: '#4F46E5',
+          strokeOpacity: 0.6,
+          strokeWeight: 2,
+          map: googleMap,
+        });
+      }
+
+      nearbyJobs.forEach(job => {
+        const marker = new window.google.maps.Marker({
+          position: { lat: Number(job.lat), lng: Number(job.lng) },
+          map: googleMap,
+          icon: {
+            url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+            scaledSize: new window.google.maps.Size(32, 32),
+          },
+          title: job.name,
+          label: {
+            text: `${job.fee}万`,
+            color: 'white',
+            fontSize: '11px',
+            fontWeight: 'bold',
+          },
+        });
+
+        const infoWindow = new window.google.maps.InfoWindow({
+          content: `
+            <div style="padding: 8px; max-width: 250px;">
+              <p style="margin: 0 0 4px 0; font-weight: bold; font-size: 13px;">${job.name}</p>
+              <p style="margin: 4px 0; font-size: 11px; color: #64748B;">${job.company}</p>
+              <div style="margin: 8px 0; padding: 6px; background: #F1F5F9; border-radius: 4px;">
+                <p style="margin: 2px 0; font-size: 12px;"><strong>💰 Fee: ${job.fee}万円</strong></p>
+                <p style="margin: 2px 0; font-size: 11px;">月収: ${job.monthlySalary}万円</p>
+                <p style="margin: 2px 0; font-size: 11px;">欠員: ${job.vacancy || 0}名</p>
+                <p style="margin: 2px 0; font-size: 11px; color: #6366F1;">📍 ${job.distanceFromCenter?.toFixed(1)}km</p>
+              </div>
+            </div>
+          `
+        });
+
+        marker.addListener('click', () => {
+          infoWindow.open(googleMap, marker);
+        });
+      });
+
+    } catch (err) {
+      console.error('Map initialization error:', err);
+    }
+
+  }, [isLoaded, error, selectedJob, nearbyJobs, seekerLocation]);
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-96 bg-red-50 rounded-lg border-2 border-red-200">
+        <div className="text-center">
+          <AlertCircle className="mx-auto mb-3 text-red-500" size={48} />
+          <p className="text-red-700 font-medium">{error}</p>
+          <p className="text-red-600 text-sm mt-2">APIキーを確認してください</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isLoaded) {
     return (
       <div className="flex items-center justify-center h-96 bg-slate-50 rounded-lg">
         <div className="text-center">
@@ -805,18 +836,15 @@ const AllJobsMapView = ({ jobs, seekerLocation, onJobClick }) => {
   useEffect(() => {
     if (!isLoaded || error || !mapRef.current || jobs.length === 0) return;
 
-    // 既存のマップインスタンスをクリーンアップ
     if (mapInstanceRef.current) {
       mapInstanceRef.current = null;
     }
 
-    // Google Maps APIが完全に利用可能か確認
     if (!window.google?.maps?.Map) {
       console.error('Google Maps API is not fully loaded');
       return;
     }
 
-    // 中心位置を計算（自宅 or 案件の中心）
     let centerLat, centerLng, zoom;
     
     if (seekerLocation?.lat && seekerLocation?.lng) {
@@ -827,14 +855,14 @@ const AllJobsMapView = ({ jobs, seekerLocation, onJobClick }) => {
       const validJobs = jobs.filter(j => j.lat && j.lng);
       if (validJobs.length === 0) return;
       
-      centerLat = validJobs.reduce((sum, j) => sum + j.lat, 0) / validJobs.length;
-      centerLng = validJobs.reduce((sum, j) => sum + j.lng, 0) / validJobs.length;
+      centerLat = validJobs.reduce((sum, j) => sum + Number(j.lat), 0) / validJobs.length;
+      centerLng = validJobs.reduce((sum, j) => sum + Number(j.lng), 0) / validJobs.length;
       zoom = 9;
     }
 
     try {
       const googleMap = new window.google.maps.Map(mapRef.current, {
-        center: { lat: centerLat, lng: centerLng },
+        center: { lat: Number(centerLat), lng: Number(centerLng) },
         zoom: zoom,
         mapTypeControl: true,
         streetViewControl: false,
@@ -842,10 +870,9 @@ const AllJobsMapView = ({ jobs, seekerLocation, onJobClick }) => {
 
       mapInstanceRef.current = googleMap;
 
-      // 自宅マーカー
       if (seekerLocation?.lat && seekerLocation?.lng) {
         const homeMarker = new window.google.maps.Marker({
-          position: { lat: seekerLocation.lat, lng: seekerLocation.lng },
+          position: { lat: Number(seekerLocation.lat), lng: Number(seekerLocation.lng) },
           map: googleMap,
           icon: {
             url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
@@ -869,20 +896,18 @@ const AllJobsMapView = ({ jobs, seekerLocation, onJobClick }) => {
         });
       }
 
-      // 案件マーカー
       jobs.forEach(job => {
         if (!job.lat || !job.lng) return;
 
-        // Feeに応じて色分け
         let iconUrl = 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png';
         if (job.fee >= 40) {
-          iconUrl = 'http://maps.google.com/mapfiles/ms/icons/yellow-dot.png'; // 高額
+          iconUrl = 'http://maps.google.com/mapfiles/ms/icons/yellow-dot.png';
         } else if (job.fee >= 30) {
           iconUrl = 'http://maps.google.com/mapfiles/ms/icons/orange-dot.png';
         }
 
         const marker = new window.google.maps.Marker({
-          position: { lat: job.lat, lng: job.lng },
+          position: { lat: Number(job.lat), lng: Number(job.lng) },
           map: googleMap,
           icon: {
             url: iconUrl,
