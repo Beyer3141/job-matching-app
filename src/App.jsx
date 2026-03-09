@@ -242,6 +242,60 @@ const estimateCommuteTime = (distanceKm, commuteMethod) => {
   return Math.round((distanceKm / distancePer30Min) * 30);
 };
 
+// 車での実際の移動距離・時間を取得（Google Maps Distance Matrix Service）
+const fetchDrivingDistances = async (originLat, originLng, jobs, onProgress) => {
+  if (!window.google?.maps?.DistanceMatrixService) {
+    console.warn('DistanceMatrixService not available, falling back to straight-line distance');
+    return new Map();
+  }
+
+  const service = new window.google.maps.DistanceMatrixService();
+  const jobsWithCoords = jobs.filter(j => j.lat && j.lng);
+  const results = new Map();
+  const BATCH_SIZE = 25;
+  const totalBatches = Math.ceil(jobsWithCoords.length / BATCH_SIZE);
+
+  for (let i = 0; i < jobsWithCoords.length; i += BATCH_SIZE) {
+    const batch = jobsWithCoords.slice(i, i + BATCH_SIZE);
+    const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+
+    if (onProgress) {
+      onProgress(`🚗 車での距離を計算中... (${batchNum}/${totalBatches}バッチ, ${jobsWithCoords.length}件)`);
+    }
+
+    try {
+      const response = await new Promise((resolve, reject) => {
+        service.getDistanceMatrix({
+          origins: [new window.google.maps.LatLng(originLat, originLng)],
+          destinations: batch.map(j => new window.google.maps.LatLng(Number(j.lat), Number(j.lng))),
+          travelMode: window.google.maps.TravelMode.DRIVING,
+          unitSystem: window.google.maps.UnitSystem.METRIC,
+        }, (res, status) => {
+          if (status === 'OK') resolve(res);
+          else reject(new Error(status));
+        });
+      });
+
+      response.rows[0].elements.forEach((el, idx) => {
+        if (el.status === 'OK') {
+          results.set(batch[idx].id, {
+            drivingDistanceKm: el.distance.value / 1000,
+            drivingTimeMin: Math.round(el.duration.value / 60),
+          });
+        }
+      });
+    } catch (err) {
+      console.warn(`Distance Matrix batch ${batchNum} failed:`, err);
+    }
+
+    if (i + BATCH_SIZE < jobsWithCoords.length) {
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+
+  return results;
+};
+
 const geocodeAddress = async (prefecture, city, detail = '') => {
   try {
     await new Promise(resolve => setTimeout(resolve, 1100));
@@ -394,6 +448,50 @@ const transformSpreadsheetData = (row, headers, addressMasterMap) => {
 // =====================================
 // Google Maps関連
 // =====================================
+
+// カスタムSVGマーカー生成
+const createJobMarkerSvg = (fee, isMain = false) => {
+  const color = isMain ? '#DC2626'
+    : fee >= 40 ? '#D97706'
+    : fee >= 30 ? '#EA580C'
+    : fee >= 20 ? '#7C3AED'
+    : '#2563EB';
+  const w = isMain ? 52 : 44;
+  const h = isMain ? 60 : 52;
+  const r = w / 2;
+  const textSize = isMain ? 11 : 10;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <defs><filter id="s"><feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-opacity="0.35"/></filter></defs>
+    <path d="M${r} 0 C${r * 0.45} 0 0 ${r * 0.45} 0 ${r} C0 ${r * 1.55} ${r} ${h} ${r} ${h} C${r} ${h} ${w} ${r * 1.55} ${w} ${r} C${w} ${r * 0.45} ${r * 1.55} 0 ${r} 0Z" fill="${color}" filter="url(#s)"/>
+    <circle cx="${r}" cy="${r}" r="${r - 6}" fill="white" fill-opacity="0.97"/>
+    <text x="${r}" y="${r + textSize * 0.4}" text-anchor="middle" font-size="${textSize}" font-weight="800" fill="${color}" font-family="system-ui,-apple-system,sans-serif">${fee}万</text>
+  </svg>`;
+  return { svg, w, h };
+};
+
+const makeJobMarkerIcon = (fee, isMain = false) => {
+  if (!window.google?.maps?.Size) return null;
+  const { svg, w, h } = createJobMarkerSvg(fee, isMain);
+  return {
+    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+    scaledSize: new window.google.maps.Size(w, h),
+    anchor: new window.google.maps.Point(w / 2, h),
+  };
+};
+
+const makeHomeMarkerIcon = () => {
+  if (!window.google?.maps?.Size) return null;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+    <defs><filter id="s"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.4"/></filter></defs>
+    <circle cx="25" cy="25" r="23" fill="#059669" stroke="white" stroke-width="3" filter="url(#s)"/>
+    <text x="25" y="33" text-anchor="middle" font-size="22" font-family="system-ui">🏠</text>
+  </svg>`;
+  return {
+    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+    scaledSize: new window.google.maps.Size(50, 50),
+    anchor: new window.google.maps.Point(25, 25),
+  };
+};
 
 const useGoogleMaps = () => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -626,23 +724,32 @@ const JobMapView = ({ selectedJob, nearbyJobs, seekerLocation, onJobClick }) => 
       const mainMarker = new window.google.maps.Marker({
         position: { lat: Number(selectedJob.lat), lng: Number(selectedJob.lng) },
         map: googleMap,
-        icon: {
-          url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
-          scaledSize: new window.google.maps.Size(50, 50),
-        },
+        icon: makeJobMarkerIcon(selectedJob.fee, true),
         title: selectedJob.name,
         zIndex: 1000,
       });
 
       const mainInfoWindow = new window.google.maps.InfoWindow({
         content: `
-          <div style="padding: 8px; max-width: 250px;">
-            <h3 style="margin: 0 0 8px 0; color: #DC2626; font-weight: bold;">📍 選択中の案件</h3>
-            <p style="margin: 4px 0; font-weight: bold;">${selectedJob.name}</p>
-            <p style="margin: 4px 0; font-size: 12px; color: #64748B;">${selectedJob.company}</p>
-            <p style="margin: 4px 0;"><strong>💰 Fee: ${selectedJob.fee}万円</strong></p>
-            <p style="margin: 4px 0; font-size: 12px;">月収: ${selectedJob.monthlySalary}万円</p>
-            ${selectedJob.estimatedTime ? `<p style="margin: 4px 0; font-size: 12px;">🚗 通勤: 約${selectedJob.estimatedTime}分</p>` : ''}
+          <div style="padding: 12px; max-width: 260px; font-family: system-ui, -apple-system, sans-serif;">
+            <div style="display: inline-block; background: #FEE2E2; color: #DC2626; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; margin-bottom: 6px;">📍 選択中の案件</div>
+            <p style="margin: 0 0 2px; font-weight: 700; font-size: 14px; color: #1e293b;">${selectedJob.name}</p>
+            <p style="margin: 0 0 8px; font-size: 11px; color: #64748b;">${selectedJob.company}</p>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+              <div style="background: #f5f3ff; border-radius: 6px; padding: 6px 8px; text-align: center;">
+                <div style="font-size: 9px; color: #7c3aed; font-weight: 600;">💰 Fee</div>
+                <div style="font-size: 15px; font-weight: 800; color: #6d28d9;">${selectedJob.fee}万</div>
+              </div>
+              <div style="background: #eff6ff; border-radius: 6px; padding: 6px 8px; text-align: center;">
+                <div style="font-size: 9px; color: #2563eb; font-weight: 600;">💵 月収</div>
+                <div style="font-size: 15px; font-weight: 800; color: #1d4ed8;">${selectedJob.monthlySalary}万</div>
+              </div>
+            </div>
+            ${selectedJob.drivingTimeMin
+              ? `<div style="margin-top: 8px; background: #eef2ff; border-radius: 6px; padding: 6px 10px; font-size: 12px; font-weight: 700; color: #4338ca;">🚗 車で約${selectedJob.drivingTimeMin}分 (${selectedJob.drivingDistanceKm?.toFixed(1)}km)</div>`
+              : selectedJob.estimatedTime
+              ? `<div style="margin-top: 8px; background: #eef2ff; border-radius: 6px; padding: 6px 10px; font-size: 12px; color: #4338ca;">🚗 推定約${selectedJob.estimatedTime}分</div>`
+              : ''}
           </div>
         `
       });
@@ -655,19 +762,16 @@ const JobMapView = ({ selectedJob, nearbyJobs, seekerLocation, onJobClick }) => 
         const homeMarker = new window.google.maps.Marker({
           position: { lat: Number(seekerLocation.lat), lng: Number(seekerLocation.lng) },
           map: googleMap,
-          icon: {
-            url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
-            scaledSize: new window.google.maps.Size(40, 40),
-          },
+          icon: makeHomeMarkerIcon(),
           title: '自宅',
           zIndex: 999,
         });
 
         const homeInfoWindow = new window.google.maps.InfoWindow({
           content: `
-            <div style="padding: 8px;">
-              <h3 style="margin: 0; color: #059669;">🏠 自宅</h3>
-              <p style="margin: 4px 0; font-size: 12px;">${seekerLocation.prefecture || ''}${seekerLocation.city || ''}</p>
+            <div style="padding: 10px; min-width: 160px; font-family: system-ui, sans-serif;">
+              <h3 style="margin: 0 0 6px; color: #059669; font-size: 14px; font-weight: 700;">🏠 あなたの自宅</h3>
+              <p style="margin: 0; font-size: 13px; color: #374151;">${seekerLocation.prefecture || ''}${seekerLocation.city || ''}</p>
             </div>
           `
         });
@@ -683,9 +787,10 @@ const JobMapView = ({ selectedJob, nearbyJobs, seekerLocation, onJobClick }) => 
           ],
           geodesic: true,
           strokeColor: '#4F46E5',
-          strokeOpacity: 0.6,
-          strokeWeight: 2,
+          strokeOpacity: 0.7,
+          strokeWeight: 3,
           map: googleMap,
+          icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 3 }, offset: '0', repeat: '20px' }],
         });
       }
 
@@ -693,30 +798,27 @@ const JobMapView = ({ selectedJob, nearbyJobs, seekerLocation, onJobClick }) => 
         const marker = new window.google.maps.Marker({
           position: { lat: Number(job.lat), lng: Number(job.lng) },
           map: googleMap,
-          icon: {
-            url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
-            scaledSize: new window.google.maps.Size(32, 32),
-          },
+          icon: makeJobMarkerIcon(job.fee),
           title: job.name,
-          label: {
-            text: `${job.fee}万`,
-            color: 'white',
-            fontSize: '11px',
-            fontWeight: 'bold',
-          },
+          zIndex: job.fee >= 40 ? 100 : job.fee >= 30 ? 50 : 10,
         });
 
         const infoWindow = new window.google.maps.InfoWindow({
           content: `
-            <div style="padding: 8px; max-width: 250px;">
-              <p style="margin: 0 0 4px 0; font-weight: bold; font-size: 13px;">${job.name}</p>
-              <p style="margin: 4px 0; font-size: 11px; color: #64748B;">${job.company}</p>
-              <div style="margin: 8px 0; padding: 6px; background: #F1F5F9; border-radius: 4px;">
-                <p style="margin: 2px 0; font-size: 12px;"><strong>💰 Fee: ${job.fee}万円</strong></p>
-                <p style="margin: 2px 0; font-size: 11px;">月収: ${job.monthlySalary}万円</p>
-                <p style="margin: 2px 0; font-size: 11px;">欠員: ${job.vacancy || 0}名</p>
-                <p style="margin: 2px 0; font-size: 11px; color: #6366F1;">📍 ${job.distanceFromCenter?.toFixed(1)}km</p>
+            <div style="padding: 12px; max-width: 260px; font-family: system-ui, -apple-system, sans-serif;">
+              <p style="margin: 0 0 2px; font-weight: 700; font-size: 13px; color: #1e293b;">${job.name}</p>
+              <p style="margin: 0 0 8px; font-size: 11px; color: #64748b;">${job.company}</p>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 6px;">
+                <div style="background: #f5f3ff; border-radius: 5px; padding: 5px 7px; text-align: center;">
+                  <div style="font-size: 9px; color: #7c3aed; font-weight: 600;">Fee</div>
+                  <div style="font-size: 13px; font-weight: 800; color: #6d28d9;">${job.fee}万</div>
+                </div>
+                <div style="background: #ecfdf5; border-radius: 5px; padding: 5px 7px; text-align: center;">
+                  <div style="font-size: 9px; color: #059669; font-weight: 600;">欠員</div>
+                  <div style="font-size: 13px; font-weight: 800; color: #047857;">${job.vacancy || 0}名</div>
+                </div>
               </div>
+              <div style="font-size: 11px; color: #6366f1; font-weight: 600;">📍 選択案件から ${job.distanceFromCenter?.toFixed(1)}km</div>
             </div>
           `
         });
@@ -768,22 +870,25 @@ const JobMapView = ({ selectedJob, nearbyJobs, seekerLocation, onJobClick }) => 
 
   return (
     <div className="space-y-3">
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
-        <div className="flex items-start gap-2">
-          <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={16} />
-          <div>
-            <p className="text-blue-800 font-medium mb-1">地図の見方</p>
-            <div className="text-blue-700 text-xs space-y-1">
-              <p>🔴 選択中の案件 | 🏠 あなたの自宅 | 🔵 周辺の案件（{nearbyJobs.length}件）</p>
-              <p>マーカーをクリックすると詳細が表示されます</p>
-            </div>
-          </div>
+      <div className="flex flex-wrap items-center gap-3 px-1">
+        <div className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+          <span style={{ display: 'inline-block', width: 14, height: 14, borderRadius: '50%', background: '#DC2626' }} />
+          <span>選択中の案件</span>
         </div>
+        <div className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+          <span style={{ display: 'inline-block', width: 14, height: 14, borderRadius: '50%', background: '#059669' }} />
+          <span>自宅</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-sm text-slate-600">
+          <span style={{ display: 'inline-block', width: 14, height: 14, borderRadius: 3, background: '#2563EB' }} />
+          <span>周辺案件 ({nearbyJobs.length}件)</span>
+        </div>
+        <span className="ml-auto text-xs text-slate-500">クリックで詳細表示</span>
       </div>
 
-      <div 
-        ref={mapRef} 
-        className="w-full rounded-lg border-2 border-slate-200 shadow-lg"
+      <div
+        ref={mapRef}
+        className="w-full rounded-xl border border-slate-200 shadow-lg"
         style={{ height: '500px' }}
       />
 
@@ -874,19 +979,16 @@ const AllJobsMapView = ({ jobs, seekerLocation, onJobClick }) => {
         const homeMarker = new window.google.maps.Marker({
           position: { lat: Number(seekerLocation.lat), lng: Number(seekerLocation.lng) },
           map: googleMap,
-          icon: {
-            url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
-            scaledSize: new window.google.maps.Size(45, 45),
-          },
+          icon: makeHomeMarkerIcon(),
           title: '自宅',
           zIndex: 9999,
         });
 
         const homeInfoWindow = new window.google.maps.InfoWindow({
           content: `
-            <div style="padding: 8px;">
-              <h3 style="margin: 0; color: #059669; font-weight: bold;">🏠 あなたの自宅</h3>
-              <p style="margin: 4px 0; font-size: 12px;">${seekerLocation.prefecture || ''}${seekerLocation.city || ''}</p>
+            <div style="padding: 10px; min-width: 160px; font-family: system-ui, sans-serif;">
+              <h3 style="margin: 0 0 6px; color: #059669; font-size: 14px; font-weight: 700;">🏠 あなたの自宅</h3>
+              <p style="margin: 0; font-size: 13px; color: #374151;">${seekerLocation.prefecture || ''}${seekerLocation.city || ''}</p>
             </div>
           `
         });
@@ -899,41 +1001,38 @@ const AllJobsMapView = ({ jobs, seekerLocation, onJobClick }) => {
       jobs.forEach(job => {
         if (!job.lat || !job.lng) return;
 
-        let iconUrl = 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png';
-        if (job.fee >= 40) {
-          iconUrl = 'http://maps.google.com/mapfiles/ms/icons/yellow-dot.png';
-        } else if (job.fee >= 30) {
-          iconUrl = 'http://maps.google.com/mapfiles/ms/icons/orange-dot.png';
-        }
-
         const marker = new window.google.maps.Marker({
           position: { lat: Number(job.lat), lng: Number(job.lng) },
           map: googleMap,
-          icon: {
-            url: iconUrl,
-            scaledSize: new window.google.maps.Size(32, 32),
-          },
+          icon: makeJobMarkerIcon(job.fee),
           title: job.name,
-          label: {
-            text: `${job.fee}万`,
-            color: 'white',
-            fontSize: '10px',
-            fontWeight: 'bold',
-          },
+          zIndex: job.fee >= 40 ? 200 : job.fee >= 30 ? 100 : 10,
         });
 
         const infoWindow = new window.google.maps.InfoWindow({
           content: `
-            <div style="padding: 8px; max-width: 250px;">
-              <p style="margin: 0 0 4px 0; font-weight: bold; font-size: 13px;">${job.name}</p>
-              <p style="margin: 4px 0; font-size: 11px; color: #64748B;">${job.company}</p>
-              <div style="margin: 8px 0; padding: 6px; background: #F1F5F9; border-radius: 4px;">
-                <p style="margin: 2px 0; font-size: 12px;"><strong>💰 Fee: ${job.fee}万円</strong></p>
-                <p style="margin: 2px 0; font-size: 11px;">月収: ${job.monthlySalary}万円</p>
-                <p style="margin: 2px 0; font-size: 11px;">欠員: ${(job.vacancy || 0) + (job.nextMonthVacancy || 0)}名</p>
-                <p style="margin: 2px 0; font-size: 11px;">${job.shiftWork || '-'}</p>
-                ${job.estimatedTime ? `<p style="margin: 2px 0; font-size: 11px; color: #6366F1;">🚗 約${job.estimatedTime}分 (${job.distance?.toFixed(1)}km)</p>` : ''}
+            <div style="padding: 12px; max-width: 260px; font-family: system-ui, -apple-system, sans-serif;">
+              <p style="margin: 0 0 2px; font-weight: 700; font-size: 13px; color: #1e293b; line-height: 1.4;">${job.name}</p>
+              <p style="margin: 0 0 8px; font-size: 11px; color: #64748b;">${job.company}</p>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
+                <div style="background: #f5f3ff; border-radius: 6px; padding: 6px 8px;">
+                  <div style="font-size: 10px; color: #7c3aed; margin-bottom: 2px; font-weight: 600;">💰 Fee</div>
+                  <div style="font-size: 14px; font-weight: 800; color: #6d28d9;">${job.fee}万円</div>
+                </div>
+                <div style="background: #eff6ff; border-radius: 6px; padding: 6px 8px;">
+                  <div style="font-size: 10px; color: #2563eb; margin-bottom: 2px; font-weight: 600;">💵 月収</div>
+                  <div style="font-size: 14px; font-weight: 800; color: #1d4ed8;">${job.monthlySalary}万円</div>
+                </div>
+                <div style="background: #ecfdf5; border-radius: 6px; padding: 6px 8px;">
+                  <div style="font-size: 10px; color: #059669; margin-bottom: 2px; font-weight: 600;">👥 欠員</div>
+                  <div style="font-size: 14px; font-weight: 800; color: #047857;">${(job.vacancy || 0) + (job.nextMonthVacancy || 0)}名</div>
+                </div>
+                <div style="background: #fff7ed; border-radius: 6px; padding: 6px 8px;">
+                  <div style="font-size: 10px; color: #d97706; margin-bottom: 2px; font-weight: 600;">⏰ 勤務</div>
+                  <div style="font-size: 12px; font-weight: 700; color: #b45309;">${job.shiftWork || '-'}</div>
+                </div>
               </div>
+              ${job.drivingTimeMin ? `<div style="background: #eef2ff; border-radius: 6px; padding: 6px 10px; display: flex; align-items: center; gap: 6px;"><span style="font-size: 12px;">🚗</span><span style="font-size: 12px; font-weight: 700; color: #4338ca;">車で約${job.drivingTimeMin}分 (${job.drivingDistanceKm?.toFixed(1)}km)</span></div>` : job.estimatedTime ? `<div style="background: #eef2ff; border-radius: 6px; padding: 6px 10px;"><span style="font-size: 12px; color: #4338ca;">🚗 推定約${job.estimatedTime}分 (${job.distance?.toFixed(1)}km)</span></div>` : ''}
             </div>
           `
         });
@@ -987,39 +1086,31 @@ const AllJobsMapView = ({ jobs, seekerLocation, onJobClick }) => {
 
   return (
     <div className="space-y-3">
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
-        <div className="flex items-start gap-2">
-          <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={16} />
-          <div className="flex-1">
-            <p className="text-blue-800 font-medium mb-1">地図の見方</p>
-            <div className="text-blue-700 text-xs space-y-1">
-              <p>🏠 緑: あなたの自宅 | 🟡 黄: Fee 40万円以上 | 🟠 橙: Fee 30万円以上 | 🔵 青: その他</p>
-              <p>マーカーをクリックすると詳細が表示されます • 表示中: {validJobs.length}件</p>
-            </div>
-          </div>
+      <div className="flex flex-wrap items-center gap-3 px-1">
+        <div className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+          <span style={{ display: 'inline-block', width: 14, height: 14, borderRadius: '50%', background: '#059669' }} />
+          <span>自宅</span>
         </div>
+        {[
+          { label: 'Fee 40万+', count: jobs.filter(j => j.fee >= 40).length, color: '#D97706' },
+          { label: 'Fee 30-39万', count: jobs.filter(j => j.fee >= 30 && j.fee < 40).length, color: '#EA580C' },
+          { label: 'Fee 20-29万', count: jobs.filter(j => j.fee >= 20 && j.fee < 30).length, color: '#7C3AED' },
+          { label: 'Fee 20万未満', count: jobs.filter(j => j.fee < 20).length, color: '#2563EB' },
+        ].map(item => (
+          <div key={item.label} className="flex items-center gap-1.5 text-sm">
+            <div style={{ width: 12, height: 12, borderRadius: 3, background: item.color, flexShrink: 0 }} />
+            <span className="font-medium" style={{ color: item.color }}>{item.label}</span>
+            <span className="text-slate-500 text-xs">({item.count}件)</span>
+          </div>
+        ))}
+        <span className="ml-auto text-xs text-slate-500">表示中: {validJobs.length}件 • クリックで詳細</span>
       </div>
 
-      <div 
-        ref={mapRef} 
-        className="w-full rounded-lg border-2 border-slate-200 shadow-lg"
+      <div
+        ref={mapRef}
+        className="w-full rounded-xl border border-slate-200 shadow-lg"
         style={{ height: '600px' }}
       />
-
-      <div className="grid grid-cols-3 gap-2 text-xs">
-        <div className="bg-yellow-50 border border-yellow-200 rounded p-2 text-center">
-          <span className="font-bold text-yellow-700">🟡 Fee 40万+</span>
-          <div className="text-yellow-600 mt-1">{jobs.filter(j => j.fee >= 40).length}件</div>
-        </div>
-        <div className="bg-orange-50 border border-orange-200 rounded p-2 text-center">
-          <span className="font-bold text-orange-700">🟠 Fee 30-39万</span>
-          <div className="text-orange-600 mt-1">{jobs.filter(j => j.fee >= 30 && j.fee < 40).length}件</div>
-        </div>
-        <div className="bg-blue-50 border border-blue-200 rounded p-2 text-center">
-          <span className="font-bold text-blue-700">🔵 その他</span>
-          <div className="text-blue-600 mt-1">{jobs.filter(j => j.fee < 30).length}件</div>
-        </div>
-      </div>
     </div>
   );
 };
@@ -1146,8 +1237,8 @@ const JobDetailModal = ({ job, onClose, seekerConditions, allJobs = [] }) => {
               <div className="text-xs opacity-90">欠員数</div>
             </div>
             <div className="bg-white/20 rounded-lg p-2 text-center">
-              <div className="text-2xl font-bold">{job.estimatedTime ? `${job.estimatedTime}分` : '-'}</div>
-              <div className="text-xs opacity-90">推定通勤</div>
+              <div className="text-2xl font-bold">{job.drivingTimeMin ? `${job.drivingTimeMin}分` : job.estimatedTime ? `${job.estimatedTime}分` : '-'}</div>
+              <div className="text-xs opacity-90">{job.drivingTimeMin ? '🚗 車で' : '推定通勤'}</div>
             </div>
           </div>
         </div>
@@ -1268,8 +1359,18 @@ const JobDetailModal = ({ job, onClose, seekerConditions, allJobs = [] }) => {
                   <InfoRow label="社宅費負担" value={job.dormSubsidyType} />
                   <InfoRow label="家族入寮" value={job.familyDorm} />
                   <InfoRow label="カップル入居" value={job.coupleDorm} />
-                  {job.distance && <InfoRow label="距離" value={`${job.distance.toFixed(1)}km`} />}
-                  {job.estimatedTime && <InfoRow label="推定通勤時間" value={`約${job.estimatedTime}分`} />}
+                  {job.drivingDistanceKm
+                    ? <InfoRow label="車での距離" value={`${job.drivingDistanceKm.toFixed(1)}km`} />
+                    : job.distance
+                    ? <InfoRow label="直線距離" value={`${job.distance.toFixed(1)}km (概算)`} />
+                    : null
+                  }
+                  {job.drivingTimeMin
+                    ? <InfoRow label="🚗 車での通勤時間" value={`約${job.drivingTimeMin}分`} highlight />
+                    : job.estimatedTime
+                    ? <InfoRow label="推定通勤時間" value={`約${job.estimatedTime}分 (概算)`} />
+                    : null
+                  }
                   
                   {(job.lat && job.lng) && (
                     <div className="mt-3 pt-3 border-t border-slate-200">
@@ -1628,8 +1729,11 @@ const JobMatchingFlowchart = () => {
   const [showCompanyFilter, setShowCompanyFilter] = useState(false);
   const [showFilterOptions, setShowFilterOptions] = useState(false);
 
-  // 🗺️ 地図/リスト表示モード（新規追加）
+  // 🗺️ 地図/リスト表示モード
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'map'
+
+  // 🗺️ 全案件マップモーダル
+  const [showAllJobsMap, setShowAllJobsMap] = useState(false);
 
   const canvasRef = useRef(null);
   const treeContainerRef = useRef(null);
@@ -1892,7 +1996,7 @@ console.log('✅ Step 1: オブジェクト作成完了', typeof addressMasterMa
     setIsLoading(true);
     setLoadingMessage('全案件を表示中...');
 
-    const picked = allJobs.map(job => {
+    let picked = allJobs.map(job => {
       let distance = null;
       let estimatedTime = null;
 
@@ -1980,6 +2084,38 @@ console.log('✅ Step 1: オブジェクト作成完了', typeof addressMasterMa
       };
     });
 
+    // Distance Matrix APIで車での実際の距離・時間を取得
+    const seekerLat2 = seekerConditions.address.lat;
+    const seekerLng2 = seekerConditions.address.lng;
+    if (seekerLat2 && seekerLng2) {
+      const jobsNeedingDriving = picked.filter(j => j.lat && j.lng);
+      if (jobsNeedingDriving.length > 0) {
+        try {
+          const drivingResults = await fetchDrivingDistances(
+            seekerLat2, seekerLng2, jobsNeedingDriving,
+            (msg) => setLoadingMessage(msg)
+          );
+          if (drivingResults.size > 0) {
+            picked = picked.map(job => {
+              const driving = drivingResults.get(job.id);
+              if (driving) {
+                return {
+                  ...job,
+                  drivingDistanceKm: driving.drivingDistanceKm,
+                  drivingTimeMin: driving.drivingTimeMin,
+                  estimatedTime: driving.drivingTimeMin,
+                  distance: driving.drivingDistanceKm,
+                };
+              }
+              return job;
+            });
+          }
+        } catch (err) {
+          console.warn('Distance Matrix failed in full list mode:', err);
+        }
+      }
+    }
+
     picked.sort((a, b) => {
       if (!a.distance && !b.distance) return 0;
       if (!a.distance) return 1;
@@ -1995,7 +2131,7 @@ console.log('✅ Step 1: オブジェクト作成完了', typeof addressMasterMa
     setSortBy('distance');
     setMainStep(2);
     setIsLoading(false);
-    
+
     showToast(`${picked.length}件を表示しました`, 'success');
   };
 
@@ -2018,7 +2154,7 @@ console.log('✅ Step 1: オブジェクト作成完了', typeof addressMasterMa
     const seekerSalary = seekerConditions.monthlySalary ? parseInt(seekerConditions.monthlySalary) : null;
     const maxCommuteTime = seekerConditions.commuteTime;
 
-    const picked = [];
+    let picked = [];
 
     for (const job of allJobs) {
       let eligible = true;
@@ -2192,6 +2328,72 @@ console.log('✅ Step 1: オブジェクト作成完了', typeof addressMasterMa
       });
     }
 
+    // Distance Matrix APIで車での実際の距離・時間を取得
+    if (seekerLat && seekerLng) {
+      const jobsNeedingDriving = picked.filter(j => j.lat && j.lng);
+      if (jobsNeedingDriving.length > 0) {
+        try {
+          setLoadingMessage(`🚗 車での移動距離を計算中... (${jobsNeedingDriving.length}件)`);
+          const drivingResults = await fetchDrivingDistances(
+            seekerLat, seekerLng, jobsNeedingDriving,
+            (msg) => setLoadingMessage(msg)
+          );
+
+          if (drivingResults.size > 0) {
+            picked = picked.map(job => {
+              const driving = drivingResults.get(job.id);
+              if (driving) {
+                return {
+                  ...job,
+                  drivingDistanceKm: driving.drivingDistanceKm,
+                  drivingTimeMin: driving.drivingTimeMin,
+                  estimatedTime: driving.drivingTimeMin,
+                  distance: driving.drivingDistanceKm,
+                };
+              }
+              return job;
+            });
+
+            // 車での時間で80分制限を再チェック
+            if (seekerConditions.commuteMethod) {
+              picked = picked.filter(job => {
+                if (job.drivingTimeMin !== undefined) return job.drivingTimeMin <= 80;
+                return true;
+              });
+            }
+
+            // スコアの距離項目を車での時間で再計算
+            picked = picked.map(job => {
+              if (job.drivingTimeMin === undefined) return job;
+              const newBreakdown = [...(job.scoreBreakdown || [])];
+              const distIdx = newBreakdown.findIndex(b => b.label.includes('通勤時間'));
+              if (distIdx >= 0) {
+                let distanceScore = 0;
+                const t = job.drivingTimeMin;
+                const maxT = maxCommuteTime;
+                if (t <= maxT) {
+                  distanceScore = SCORE_WEIGHTS.distance;
+                  newBreakdown[distIdx] = { label: `通勤時間（車で${t}分/${maxT}分）✨希望範囲内`, score: distanceScore };
+                } else if (t <= 60) {
+                  const ratio = (t - maxT) / (60 - maxT);
+                  distanceScore = Math.round(SCORE_WEIGHTS.distance * (1 - ratio));
+                  newBreakdown[distIdx] = { label: `通勤時間（車で${t}分）⚠️希望+${t - maxT}分`, score: distanceScore };
+                } else {
+                  newBreakdown[distIdx] = { label: `通勤時間（車で${t}分）⚠️遠い`, score: 0 };
+                }
+                const oldScore = job.scoreBreakdown?.[distIdx]?.score || 0;
+                const newTotalScore = Math.max(0, (job.pickupScore || 0) - oldScore + distanceScore);
+                return { ...job, pickupScore: newTotalScore, scoreBreakdown: newBreakdown };
+              }
+              return job;
+            });
+          }
+        } catch (err) {
+          console.warn('Distance Matrix failed, using estimated times:', err);
+        }
+      }
+    }
+
     picked.sort((a, b) => {
       if (!a.distance && !b.distance) return 0;
       if (!a.distance) return 1;
@@ -2204,13 +2406,13 @@ console.log('✅ Step 1: オブジェクト作成完了', typeof addressMasterMa
     setSearchQuery('');
     setActiveTab('all');
     setSelectedCompanies(new Set());
-    
+
     if (seekerConditions.commuteMethod && seekerConditions.commuteTime) {
       setSortBy('score');
     } else {
       setSortBy('distance');
     }
-    
+
     setMainStep(2);
     setIsLoading(false);
     
@@ -2441,10 +2643,13 @@ console.log('✅ Step 1: オブジェクト作成完了', typeof addressMasterMa
   };
 
   const exportToCSV = () => {
-    const headers = ['案件名', '派遣会社', 'ランク', 'スコア', '距離(km)', '推定通勤(分)', 'Fee(万)', '月収(万)', '欠員数', '都道府県', '住所', '2025実績', '2024実績'];
+    const headers = ['案件名', '派遣会社', 'ランク', 'スコア', '距離(km)', '距離種別', '通勤時間(分)', 'Fee(万)', '月収(万)', '欠員数', '都道府県', '住所', '2025実績', '2024実績'];
     const rows = pickedJobs.map(job => [
-      job.name, job.company, job.companyRank, job.pickupScore, job.distance?.toFixed(1) || '-',
-      job.estimatedTime || '-', job.fee, job.monthlySalary, job.vacancy, job.prefecture, job.address,
+      job.name, job.company, job.companyRank, job.pickupScore,
+      (job.drivingDistanceKm ?? job.distance)?.toFixed(1) || '-',
+      job.drivingDistanceKm ? '車での距離' : job.distance ? '直線距離' : '-',
+      job.drivingTimeMin ?? job.estimatedTime ?? '-',
+      job.fee, job.monthlySalary, job.vacancy, job.prefecture, job.address,
       job.placement2025 || 0, job.placement2024 || 0
     ]);
     const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
@@ -2505,36 +2710,50 @@ console.log('✅ Step 1: オブジェクト作成完了', typeof addressMasterMa
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: MD3.color.background }}>
-      <header 
-        className={`${MD3.elevation[2]} sticky top-0 z-40 border-b`}
-        style={{ backgroundColor: MD3.color.surface.main, borderColor: MD3.color.outlineVariant }}
+      <header
+        className="sticky top-0 z-40 shadow-md"
+        style={{
+          background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 50%, #4F46E5 100%)',
+          backgroundSize: '200% 200%',
+        }}
       >
-        <div className="max-w-7xl mx-auto px-6 py-4">
+        <div className="max-w-7xl mx-auto px-6 py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ backgroundColor: MD3.color.primary.main }}>
-                <Briefcase style={{ color: MD3.color.primary.onMain }} size={28} />
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-white/20 backdrop-blur-sm">
+                <Briefcase className="text-white" size={24} />
               </div>
               <div>
-                <h1 className={MD3.typography.titleLarge} style={{ color: MD3.color.onSurface }}>案件マッチングツール</h1>
-                <p className={MD3.typography.bodySmall} style={{ color: MD3.color.surface.onVariant }}>柔軟な条件設定で最適な案件をピックアップ</p>
+                <h1 className="text-lg font-bold text-white tracking-tight">案件マッチングツール</h1>
+                <p className="text-xs text-white/70 font-medium">
+                  {allJobs.length > 0
+                    ? `${allJobs.length}件 読み込み済み${lastFetchTime ? ` · ${lastFetchTime.toLocaleTimeString()}` : ''}`
+                    : 'データを取得中...'}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <button 
-                onClick={fetchSpreadsheetData} 
-                disabled={isLoading}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full ${MD3.transition.standard}`}
-                style={{ backgroundColor: MD3.color.surface.variant, color: MD3.color.onSurface, opacity: isLoading ? 0.6 : 1 }}
-              >
-                <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
-                <span className={MD3.typography.labelMedium}>データ更新</span>
-              </button>
               {allJobs.length > 0 && (
-                <span className={`${MD3.typography.bodySmall} hidden md:block`} style={{ color: MD3.color.surface.onVariant }}>
-                  全{allJobs.length}件 / 更新: {lastFetchTime?.toLocaleTimeString()}
-                </span>
+                <button
+                  onClick={() => setShowAllJobsMap(true)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full font-medium text-sm ${MD3.transition.standard} bg-white/15 hover:bg-white/25 text-white border border-white/30`}
+                >
+                  <Map size={16} />
+                  <span>全案件マップ</span>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-white text-indigo-700">
+                    {allJobs.filter(j => j.lat && j.lng).length}
+                  </span>
+                </button>
               )}
+              <button
+                onClick={fetchSpreadsheetData}
+                disabled={isLoading}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${MD3.transition.standard} bg-white/15 hover:bg-white/25 text-white border border-white/30`}
+                style={{ opacity: isLoading ? 0.7 : 1 }}
+              >
+                <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
+                <span>更新</span>
+              </button>
             </div>
           </div>
         </div>
@@ -2662,16 +2881,23 @@ console.log('✅ Step 1: オブジェクト作成完了', typeof addressMasterMa
                   onChange={(address) => setSeekerConditions(prev => ({ ...prev, address }))}
                   onGeocode={handleGeocode} isLoading={isLoading} />
 
-                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-                  <h3 className="font-bold text-blue-800 mb-2">💡 通勤圏内フィルター</h3>
-                  <p className="text-blue-700 text-xs">
-                    {seekerConditions.commuteMethod ? (
+                <div className="mt-4 p-3 rounded-xl text-sm" style={{ background: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)', border: '1px solid #C7D2FE' }}>
+                  <h3 className="font-bold text-indigo-800 mb-1 flex items-center gap-2">
+                    <span>🚗</span> 車での移動距離計算
+                  </h3>
+                  <p className="text-indigo-700 text-xs leading-relaxed">
+                    {seekerConditions.commuteMethod === '自家用車' || seekerConditions.commuteMethod === '車' ? (
                       <>
-                        {seekerConditions.commuteMethod}で{seekerConditions.commuteTime}分以内の案件のみを表示します
-                        <br/>約{Math.round(COMMUTE_DISTANCE_PER_30MIN[seekerConditions.commuteMethod.replace('自家用車', '車')] * seekerConditions.commuteTime / 30)}km圏内
+                        Google Maps Distance Matrix APIで実際の<strong>車での所要時間</strong>を計算します。<br/>
+                        {seekerConditions.commuteTime}分以内の案件をピックアップ（80分超は除外）
+                      </>
+                    ) : seekerConditions.commuteMethod ? (
+                      <>
+                        {seekerConditions.commuteMethod}で{seekerConditions.commuteTime}分以内の案件をピックアップ<br/>
+                        <span className="text-indigo-500">※現在は概算距離で計算（自家用車設定時は実距離を使用）</span>
                       </>
                     ) : (
-                      '通勤手段を設定すると通勤圏内でフィルタリングされます'
+                      '通勤手段を設定すると通勤時間でフィルタリングされます'
                     )}
                   </p>
                 </div>
@@ -3058,17 +3284,20 @@ console.log('✅ Step 1: オブジェクト作成完了', typeof addressMasterMa
                                 </div>
                                 <div className="bg-amber-50 rounded-lg p-2 border border-amber-200">
                                   <div className="text-xs text-amber-600 mb-0.5">
-                                    {job.distance ? '🚗 通勤' : '📍 勤務形態'}
+                                    {job.drivingTimeMin ? '🚗 車での通勤' : job.estimatedTime ? '🚗 推定通勤' : '⏰ 勤務形態'}
                                   </div>
                                   <div className="font-bold text-amber-700">
-                                    {job.estimatedTime ? `${job.estimatedTime}分` : job.shiftWork || '-'}
+                                    {job.drivingTimeMin ? `${job.drivingTimeMin}分` : job.estimatedTime ? `${job.estimatedTime}分` : job.shiftWork || '-'}
                                   </div>
                                 </div>
                               </div>
 
-                              {job.distance && (
+                              {(job.drivingDistanceKm || job.distance) && (
                                 <div className="mt-2 text-xs text-slate-600 flex items-center gap-4">
-                                  <span>📍 {job.distance.toFixed(1)}km</span>
+                                  {job.drivingDistanceKm
+                                    ? <span className="flex items-center gap-1">🚗 <span className="font-medium">{job.drivingDistanceKm.toFixed(1)}km</span> <span className="text-slate-400">(車)</span></span>
+                                    : <span>📍 {job.distance?.toFixed(1)}km <span className="text-slate-400">(直線)</span></span>
+                                  }
                                   {job.shiftWork && <span>⏰ {job.shiftWork}</span>}
                                 </div>
                               )}
@@ -3316,12 +3545,68 @@ console.log('✅ Step 1: オブジェクト作成完了', typeof addressMasterMa
         )}
       </main>
 
+      {/* 全案件マップモーダル */}
+      {showAllJobsMap && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[85] flex items-start justify-center p-4 pt-16" onClick={() => setShowAllJobsMap(false)}>
+          <div
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl flex flex-col overflow-hidden"
+            style={{ maxHeight: 'calc(100vh - 80px)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* モーダルヘッダー */}
+            <div className="flex items-center justify-between px-6 py-4 flex-shrink-0 border-b border-slate-100" style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #059669 100%)' }}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                  <Map size={22} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">全案件マップ</h2>
+                  <p className="text-sm text-white/80">
+                    {allJobs.filter(j => j.lat && j.lng).length}件を表示
+                    {seekerConditions.address.lat && (
+                      <span className="ml-2 bg-white/20 px-2 py-0.5 rounded-full text-xs">
+                        📍 {seekerConditions.address.prefecture}{seekerConditions.address.city} から
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setShowAllJobsMap(false)} className="p-2 hover:bg-white/20 rounded-xl transition text-white">
+                <X size={22} />
+              </button>
+            </div>
+
+            {/* 求職者情報がない場合のヒント */}
+            {!seekerConditions.address.lat && (
+              <div className="px-6 py-3 bg-amber-50 border-b border-amber-200 flex items-center gap-2 flex-shrink-0">
+                <Info size={16} className="text-amber-600 flex-shrink-0" />
+                <p className="text-sm text-amber-700">
+                  <span className="font-medium">ヒント:</span> 求職者の住所を設定すると、自宅からの距離感がわかります
+                </p>
+              </div>
+            )}
+
+            {/* 地図エリア */}
+            <div className="p-4 overflow-y-auto flex-1">
+              <AllJobsMapView
+                jobs={allJobs}
+                seekerLocation={seekerConditions.address}
+                onJobClick={(job) => {
+                  setSelectedJob(job);
+                  setShowAllJobsMap(false);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {isLoading && <LoadingSpinner message={loadingMessage} />}
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {selectedJob && (
-        <JobDetailModal 
-          job={selectedJob} 
-          onClose={() => setSelectedJob(null)} 
+        <JobDetailModal
+          job={selectedJob}
+          onClose={() => setSelectedJob(null)}
           seekerConditions={seekerConditions}
           allJobs={pickedJobs}
         />
