@@ -582,89 +582,73 @@ const Toast = ({ message, type = 'success', onClose }) => {
     return () => clearTimeout(timer);
   }, [onClose]);
 
-  const getColors = () => {
-    switch (type) {
-      case 'success': return { bg: MD3.color.tertiary.container, text: MD3.color.tertiary.onContainer, icon: MD3.color.tertiary.main };
-      case 'error': return { bg: MD3.color.error.container, text: MD3.color.error.onContainer, icon: MD3.color.error.main };
-      case 'warning': return { bg: MD3.color.warning.container, text: MD3.color.warning.onContainer, icon: MD3.color.warning.main };
-      default: return { bg: MD3.color.primary.container, text: MD3.color.primary.onContainer, icon: MD3.color.primary.main };
-    }
-  };
-  
-  const colors = getColors();
-  
+  const config = {
+    success: { accent: '#10B981', icon: <CheckCircle size={17} /> },
+    error:   { accent: '#EF4444', icon: <AlertCircle size={17} /> },
+    warning: { accent: '#F59E0B', icon: <AlertTriangle size={17} /> },
+    info:    { accent: '#6366F1', icon: <Info size={17} /> },
+  }[type] || { accent: '#6366F1', icon: <Info size={17} /> };
+
   return (
-    <div 
-      className={`fixed top-6 right-6 ${MD3.elevation[4]} ${MD3.transition.emphasized} z-[100] flex items-center gap-3 px-6 py-4 rounded-2xl min-w-[320px]`}
-      style={{ backgroundColor: colors.bg, color: colors.text }}
+    <div
+      className="fixed top-4 right-4 z-[100] flex items-center gap-3 bg-white border border-gray-200 shadow-xl rounded-xl px-4 py-3 min-w-[300px] max-w-[420px] animate-in slide-in-from-top-2"
+      style={{ borderLeft: `4px solid ${config.accent}` }}
     >
-      <div style={{ color: colors.icon }}>
-        {type === 'success' && <CheckCircle size={24} />}
-        {type === 'error' && <AlertCircle size={24} />}
-        {type === 'warning' && <AlertTriangle size={24} />}
-        {type === 'info' && <Info size={24} />}
-      </div>
-      <span className={`${MD3.typography.bodyLarge} flex-1 font-medium`}>{message}</span>
-      <button onClick={onClose} className={`${MD3.transition.fast} hover:opacity-70 p-1 rounded-full`} style={{ color: colors.text }}>
-        <X size={20} />
+      <span style={{ color: config.accent, flexShrink: 0 }}>{config.icon}</span>
+      <span className="flex-1 text-sm font-medium text-gray-800 leading-snug">{message}</span>
+      <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors ml-1 flex-shrink-0">
+        <X size={16} />
       </button>
     </div>
   );
 };
 
 const LoadingSpinner = ({ message = '読み込み中...' }) => (
-  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100]">
-    <div className={`${MD3.elevation[5]} rounded-3xl p-10 flex flex-col items-center gap-6 min-w-[300px]`} style={{ backgroundColor: MD3.color.surface.main }}>
-      <div className="relative w-16 h-16">
-        <Loader className="animate-spin absolute inset-0" size={64} style={{ color: MD3.color.primary.main }} strokeWidth={2.5} />
-        <div className="absolute inset-2 rounded-full" style={{ backgroundColor: MD3.color.primary.container, opacity: 0.2 }} />
-      </div>
-      <p className={`${MD3.typography.bodyLarge} font-medium text-center`} style={{ color: MD3.color.onSurface }}>{message}</p>
+  <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-[2px] flex items-center justify-center z-[100]">
+    <div className="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-4 min-w-[260px]">
+      <div className="w-10 h-10 border-[3px] border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
+      <p className="text-sm font-medium text-gray-700 text-center leading-relaxed max-w-[220px]">{message}</p>
     </div>
   </div>
 );
 
 const ProgressStepper = ({ currentStep, steps }) => (
-  <div className={`${MD3.elevation[1]} rounded-2xl p-6 mb-6`} style={{ backgroundColor: MD3.color.surface.main }}>
-    <div className="flex justify-between items-center">
-      {steps.map((step, index) => (
-        <React.Fragment key={index}>
-          <div className="flex flex-col items-center flex-1 relative">
-            <div 
-              className={`w-12 h-12 rounded-full flex items-center justify-center font-bold ${MD3.transition.standard} ${MD3.elevation[index === currentStep ? 2 : 0]}`}
-              style={{
-                backgroundColor: index < currentStep ? MD3.color.tertiary.main 
-                  : index === currentStep ? MD3.color.primary.main : MD3.color.surface.variant,
-                color: index <= currentStep ? MD3.color.primary.onMain : MD3.color.surface.onVariant,
-              }}
-            >
-              {index < currentStep ? <CheckCircle size={24} /> : index + 1}
-            </div>
-            {index === currentStep && (
-              <div className="absolute -inset-1 rounded-full animate-pulse" style={{ border: `2px solid ${MD3.color.primary.main}`, opacity: 0.3 }} />
-            )}
-            <span className={`mt-3 text-center ${MD3.typography.labelMedium} ${MD3.transition.standard} px-2`} style={{ color: index <= currentStep ? MD3.color.primary.main : MD3.color.surface.onVariant }}>
-              {step}
-            </span>
+  <div className="flex items-start justify-between mb-6 bg-white border border-gray-200 rounded-xl px-6 py-4 shadow-sm">
+    {steps.map((step, index) => (
+      <React.Fragment key={index}>
+        <div className="flex flex-col items-center gap-1.5 min-w-[56px]">
+          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300 ${
+            index < currentStep
+              ? 'bg-indigo-600 text-white'
+              : index === currentStep
+              ? 'bg-indigo-600 text-white ring-4 ring-indigo-100'
+              : 'bg-gray-100 border-2 border-gray-200 text-gray-400'
+          }`}>
+            {index < currentStep ? <Check size={15} strokeWidth={3} /> : <span>{index + 1}</span>}
           </div>
-          {index < steps.length - 1 && (
-            <div className={`flex-1 h-[2px] mx-3 rounded-full ${MD3.transition.standard}`} style={{ backgroundColor: index < currentStep ? MD3.color.tertiary.main : MD3.color.outline, maxWidth: '80px' }} />
-          )}
-        </React.Fragment>
-      ))}
-    </div>
+          <span className={`text-xs font-medium text-center leading-tight ${
+            index === currentStep ? 'text-indigo-700' : index < currentStep ? 'text-indigo-500' : 'text-gray-400'
+          }`}>{step}</span>
+        </div>
+        {index < steps.length - 1 && (
+          <div className={`flex-1 h-0.5 mx-2 mt-4 rounded-full transition-all duration-300 ${
+            index < currentStep ? 'bg-indigo-500' : 'bg-gray-200'
+          }`} />
+        )}
+      </React.Fragment>
+    ))}
   </div>
 );
 
 const CompanyRankBadge = ({ rank, showLabel = false }) => {
   const config = COMPANY_RANKS[rank] || COMPANY_RANKS['C'];
   return (
-    <span 
-      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full ${MD3.typography.labelMedium} font-bold ${MD3.transition.fast}`}
+    <span
+      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold tracking-wide transition-colors"
       style={{ backgroundColor: config.bg, color: config.textColor, border: `1px solid ${config.border}` }}
     >
-      <span className="text-sm">{config.label}</span>
-      {showLabel && <span className={`${MD3.typography.labelSmall} opacity-90`}>{config.description}</span>}
+      <span>{config.label}</span>
+      {showLabel && <span className="opacity-80 font-normal">{config.description}</span>}
     </span>
   );
 };
@@ -2709,264 +2693,226 @@ console.log('✅ Step 1: オブジェクト作成完了', typeof addressMasterMa
   useEffect(() => { fetchSpreadsheetData(); }, []);
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: MD3.color.background }}>
-      <header
-        className="sticky top-0 z-40 shadow-md"
-        style={{
-          background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 50%, #4F46E5 100%)',
-          backgroundSize: '200% 200%',
-        }}
-      >
-        <div className="max-w-7xl mx-auto px-6 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-white/20 backdrop-blur-sm">
-                <Briefcase className="text-white" size={24} />
-              </div>
-              <div>
-                <h1 className="text-lg font-bold text-white tracking-tight">案件マッチングツール</h1>
-                <p className="text-xs text-white/70 font-medium">
-                  {allJobs.length > 0
-                    ? `${allJobs.length}件 読み込み済み${lastFetchTime ? ` · ${lastFetchTime.toLocaleTimeString()}` : ''}`
-                    : 'データを取得中...'}
-                </p>
-              </div>
+    <div className="min-h-screen bg-[#F4F5F7]">
+      <header className="sticky top-0 z-40 bg-gray-900 border-b border-gray-800 shadow-sm">
+        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Briefcase className="text-white" size={17} />
             </div>
-            <div className="flex items-center gap-3">
-              {allJobs.length > 0 && (
-                <button
-                  onClick={() => setShowAllJobsMap(true)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full font-medium text-sm ${MD3.transition.standard} bg-white/15 hover:bg-white/25 text-white border border-white/30`}
-                >
-                  <Map size={16} />
-                  <span>全案件マップ</span>
-                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-white text-indigo-700">
-                    {allJobs.filter(j => j.lat && j.lng).length}
-                  </span>
-                </button>
-              )}
+            <div>
+              <h1 className="text-[15px] font-semibold text-white leading-tight">案件マッチングツール</h1>
+              <p className="text-[11px] text-gray-400 leading-tight">
+                {allJobs.length > 0
+                  ? `${allJobs.length}件読み込み済み${lastFetchTime ? `  ·  ${lastFetchTime.toLocaleTimeString()}` : ''}`
+                  : 'データを取得中...'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {allJobs.length > 0 && (
               <button
-                onClick={fetchSpreadsheetData}
-                disabled={isLoading}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${MD3.transition.standard} bg-white/15 hover:bg-white/25 text-white border border-white/30`}
-                style={{ opacity: isLoading ? 0.7 : 1 }}
+                onClick={() => setShowAllJobsMap(true)}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-800 transition-colors border border-gray-700"
               >
-                <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
-                <span>更新</span>
+                <Map size={15} />
+                <span>全案件マップ</span>
+                <span className="px-1.5 py-0.5 rounded text-[11px] font-bold bg-indigo-600 text-white">
+                  {allJobs.filter(j => j.lat && j.lng).length}
+                </span>
               </button>
-            </div>
+            )}
+            <button
+              onClick={fetchSpreadsheetData}
+              disabled={isLoading}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-800 transition-colors border border-gray-700 disabled:opacity-50"
+            >
+              <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} />
+              <span>更新</span>
+            </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-6">
+      <main className="max-w-7xl mx-auto px-6 py-5">
         <ProgressStepper currentStep={mainStep} steps={['データ取得', '求職者情報', '案件ピックアップ', '分岐フロー']} />
 
         {/* Step 1: 求職者情報入力 */}
         {mainStep === 1 && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className={`${MD3.elevation[1]} rounded-3xl p-6`} style={{ backgroundColor: MD3.color.surface.main }}>
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ backgroundColor: MD3.color.primary.container }}>
-                    <User size={24} style={{ color: MD3.color.primary.main }} />
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* 左: 基本情報 */}
+              <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2.5">
+                  <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+                    <User size={16} className="text-indigo-600" />
                   </div>
-                  <h2 className={MD3.typography.titleLarge} style={{ color: MD3.color.onSurface }}>求職者基本情報</h2>
+                  <h2 className="text-base font-semibold text-gray-900">求職者情報</h2>
                 </div>
-                <div className="space-y-5">
-                  <div className="grid grid-cols-2 gap-4">
+                <div className="p-5 space-y-4">
+                  {/* 必須項目 */}
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className={`block ${MD3.typography.labelMedium} mb-2`} style={{ color: MD3.color.onSurface }}>
-                        年齢 <span style={{ color: MD3.color.error.main }}>*</span>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wide">
+                        年齢 <span className="text-red-500 normal-case tracking-normal">必須</span>
                       </label>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         value={seekerConditions.age}
                         onChange={(e) => setSeekerConditions(prev => ({ ...prev, age: e.target.value }))}
-                        placeholder="例: 35" 
-                        className={`w-full px-4 py-3 rounded-xl ${MD3.transition.fast} border-2`}
-                        style={{ backgroundColor: MD3.color.surface.variant, borderColor: MD3.color.outline, color: MD3.color.onSurface }}
+                        placeholder="例: 35"
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 bg-gray-50 focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
                       />
                     </div>
                     <div>
-                      <label className={`block ${MD3.typography.labelMedium} mb-2`} style={{ color: MD3.color.onSurface }}>
-                        性別 <span style={{ color: MD3.color.error.main }}>*</span>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wide">
+                        性別 <span className="text-red-500 normal-case tracking-normal">必須</span>
                       </label>
-                      <select 
+                      <select
                         value={seekerConditions.gender}
                         onChange={(e) => setSeekerConditions(prev => ({ ...prev, gender: e.target.value }))}
-                        className={`w-full px-4 py-3 rounded-xl ${MD3.transition.fast} border-2`}
-                        style={{ backgroundColor: MD3.color.surface.variant, borderColor: MD3.color.outline, color: MD3.color.onSurface }}
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 bg-gray-50 focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
                       >
                         {genderOptions.map(g => <option key={g} value={g}>{g}</option>)}
                       </select>
                     </div>
                   </div>
-                  
-                  <div className="rounded-2xl p-4" style={{ backgroundColor: MD3.color.warning.container, border: `1px solid ${MD3.color.warning.main}` }}>
-                    <h3 className={`${MD3.typography.labelLarge} mb-1 flex items-center gap-2`} style={{ color: MD3.color.warning.onContainer }}>
-                      <Settings size={16} />
-                      オプション設定
-                    </h3>
-                    <p className={MD3.typography.bodySmall} style={{ color: MD3.color.warning.onContainer }}>
-                      以下の項目は未入力でも検索可能です。入力すると精度が向上します。
-                    </p>
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className={`block ${MD3.typography.labelMedium} mb-2 flex items-center gap-2`} style={{ color: MD3.color.onSurface }}>
-                        希望月収（万円）
-                        <span className={`${MD3.typography.labelSmall} px-2 py-0.5 rounded-full`} style={{ backgroundColor: MD3.color.warning.container, color: MD3.color.warning.onContainer }}>オプション</span>
-                      </label>
-                      <input 
-                        type="number" 
-                        value={seekerConditions.monthlySalary}
-                        onChange={(e) => setSeekerConditions(prev => ({ ...prev, monthlySalary: e.target.value }))}
-                        placeholder="未設定" 
-                        className={`w-full px-4 py-3 rounded-xl ${MD3.transition.fast} border-2`}
-                        style={{ backgroundColor: MD3.color.surface.variant, borderColor: MD3.color.outline, color: MD3.color.onSurface }}
-                      />
+                  <div className="border-t border-dashed border-gray-200 pt-4">
+                    <p className="text-xs text-gray-400 mb-3 flex items-center gap-1.5">
+                      <Settings size={12} />
+                      以下はオプション — 入力すると精度が向上します
+                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">希望月収（万円）</label>
+                        <input
+                          type="number"
+                          value={seekerConditions.monthlySalary}
+                          onChange={(e) => setSeekerConditions(prev => ({ ...prev, monthlySalary: e.target.value }))}
+                          placeholder="未設定"
+                          className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 bg-gray-50 focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">希望勤務形態</label>
+                        <select
+                          value={seekerConditions.shiftWork}
+                          onChange={(e) => setSeekerConditions(prev => ({ ...prev, shiftWork: e.target.value }))}
+                          className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 bg-gray-50 focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                        >
+                          <option value="">未設定</option>
+                          {shiftWorkOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">通勤手段</label>
+                        <select
+                          value={seekerConditions.commuteMethod}
+                          onChange={(e) => setSeekerConditions(prev => ({ ...prev, commuteMethod: e.target.value }))}
+                          className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 bg-gray-50 focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                        >
+                          {commuteMethods.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">希望通勤時間（分）</label>
+                        <input
+                          type="number"
+                          value={seekerConditions.commuteTime}
+                          onChange={(e) => setSeekerConditions(prev => ({ ...prev, commuteTime: parseInt(e.target.value) || 30 }))}
+                          className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 bg-gray-50 focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className={`block ${MD3.typography.labelMedium} mb-2 flex items-center gap-2`} style={{ color: MD3.color.onSurface }}>
-                        希望勤務形態
-                        <span className={`${MD3.typography.labelSmall} px-2 py-0.5 rounded-full`} style={{ backgroundColor: MD3.color.warning.container, color: MD3.color.warning.onContainer }}>オプション</span>
-                      </label>
-                      <select 
-                        value={seekerConditions.shiftWork}
-                        onChange={(e) => setSeekerConditions(prev => ({ ...prev, shiftWork: e.target.value }))}
-                        className={`w-full px-4 py-3 rounded-xl ${MD3.transition.fast} border-2`}
-                        style={{ backgroundColor: MD3.color.surface.variant, borderColor: MD3.color.outline, color: MD3.color.onSurface }}
+                    <div className="mt-3">
+                      <label className="block text-xs font-medium text-gray-600 mb-1.5">入寮 / 通勤</label>
+                      <select
+                        value={seekerConditions.commutePreference}
+                        onChange={(e) => setSeekerConditions(prev => ({ ...prev, commutePreference: e.target.value }))}
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 bg-gray-50 focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
                       >
                         <option value="">未設定</option>
-                        {shiftWorkOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                        {commutePreferenceOptions.filter(c => c).map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-600 mb-1">通勤手段 <span className="text-xs text-amber-600">オプション</span></label>
-                      <select 
-                        value={seekerConditions.commuteMethod}
-                        onChange={(e) => setSeekerConditions(prev => ({ ...prev, commuteMethod: e.target.value }))}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                      >
-                        {commuteMethods.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                      </select>
+
+                  {/* スコア説明 */}
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <p className="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1.5"><BarChart3 size={12} /> スコア配分</p>
+                    <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-[11px] text-gray-500">
+                      <span>距離: <b className="text-gray-700">25点</b></span>
+                      <span>欠員: <b className="text-gray-700">25点</b></span>
+                      <span>Fee: <b className="text-gray-700">20点</b></span>
+                      <span>ランク: <b className="text-gray-700">15点</b></span>
+                      <span>給与: <b className="text-gray-700">10点</b></span>
+                      <span>勤務形態: <b className="text-gray-700">5点</b></span>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-600 mb-1">希望通勤時間（分）</label>
-                      <input type="number" value={seekerConditions.commuteTime}
-                        onChange={(e) => setSeekerConditions(prev => ({ ...prev, commuteTime: parseInt(e.target.value) || 30 }))}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-600 mb-1">
-                      入寮/通勤 <span className="text-xs text-amber-600">オプション</span>
-                    </label>
-                    <select value={seekerConditions.commutePreference}
-                      onChange={(e) => setSeekerConditions(prev => ({ ...prev, commutePreference: e.target.value }))}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
-                      <option value="">未設定</option>
-                      {commutePreferenceOptions.filter(c => c).map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl shadow-sm p-5">
-                <AddressInput value={seekerConditions.address}
-                  onChange={(address) => setSeekerConditions(prev => ({ ...prev, address }))}
-                  onGeocode={handleGeocode} isLoading={isLoading} />
-
-                <div className="mt-4 p-3 rounded-xl text-sm" style={{ background: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)', border: '1px solid #C7D2FE' }}>
-                  <h3 className="font-bold text-indigo-800 mb-1 flex items-center gap-2">
-                    <span>🚗</span> 車での移動距離計算
-                  </h3>
-                  <p className="text-indigo-700 text-xs leading-relaxed">
-                    {seekerConditions.commuteMethod === '自家用車' || seekerConditions.commuteMethod === '車' ? (
-                      <>
-                        Google Maps Distance Matrix APIで実際の<strong>車での所要時間</strong>を計算します。<br/>
-                        {seekerConditions.commuteTime}分以内の案件をピックアップ（80分超は除外）
-                      </>
-                    ) : seekerConditions.commuteMethod ? (
-                      <>
-                        {seekerConditions.commuteMethod}で{seekerConditions.commuteTime}分以内の案件をピックアップ<br/>
-                        <span className="text-indigo-500">※現在は概算距離で計算（自家用車設定時は実距離を使用）</span>
-                      </>
-                    ) : (
-                      '通勤手段を設定すると通勤時間でフィルタリングされます'
-                    )}
-                  </p>
-                </div>
-
-                <div className="mt-4 p-3 bg-indigo-50 rounded-lg text-sm">
-                  <h3 className="font-medium text-indigo-700 mb-2">📊 スコア配分</h3>
-                  <div className="grid grid-cols-2 gap-1 text-xs text-indigo-600">
-                    <div>距離（近いほど高）: 25点</div>
-                    <div>欠員数: 25点</div>
-                    <div>Fee: 20点</div>
-                    <div>派遣会社ランク: 15点</div>
-                    <div>給与マッチ: 10点</div>
-                    <div>勤務形態: 5点</div>
+              {/* 右: 住所入力 */}
+              <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2.5">
+                  <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                    <MapPin size={16} className="text-emerald-600" />
                   </div>
+                  <h2 className="text-base font-semibold text-gray-900">居住地</h2>
+                </div>
+                <div className="p-5">
+                  <AddressInput
+                    value={seekerConditions.address}
+                    onChange={(address) => setSeekerConditions(prev => ({ ...prev, address }))}
+                    onGeocode={handleGeocode}
+                    isLoading={isLoading}
+                  />
+                  {(seekerConditions.commuteMethod === '自家用車' || seekerConditions.commuteMethod === '車') && (
+                    <div className="mt-4 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2.5">
+                      <p className="text-xs text-indigo-700 font-medium flex items-center gap-1.5 mb-0.5">
+                        <Navigation size={12} /> 車での実距離計算が有効
+                      </p>
+                      <p className="text-[11px] text-indigo-500">
+                        Google Maps Distance Matrix APIで実際の所要時間を計算します（{seekerConditions.commuteTime}分以内 / 80分超は除外）
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm p-4">
+            {/* アクションバー */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm px-5 py-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2 text-slate-600">
-                    <Database size={20} />
-                    <span className="font-medium">読み込み済み案件:</span>
-                    <span className="text-2xl font-bold text-indigo-600">{allJobs.length}件</span>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <Database size={18} className="text-gray-400" />
+                    <span className="text-sm">読み込み済み:</span>
+                    <span className="text-xl font-bold text-indigo-600">{allJobs.length}<span className="text-sm font-normal text-gray-500 ml-1">件</span></span>
                   </div>
                 </div>
                 <div className="flex gap-3">
-                  <button 
-                    onClick={runFullListMode} 
+                  <button
+                    onClick={runFullListMode}
                     disabled={allJobs.length === 0}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all ${
-                      allJobs.length === 0
-                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                        : 'bg-purple-600 text-white hover:bg-purple-700 shadow-lg'
-                    }`}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm transition-all bg-violet-600 text-white hover:bg-violet-700 shadow-sm disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
                   >
-                    <List size={20} />全件表示モード
+                    <List size={17} />全件表示
                   </button>
-                  
-                  <button 
-                    onClick={runAutoPickup} 
+                  <button
+                    onClick={runAutoPickup}
                     disabled={!seekerConditions.age || allJobs.length === 0 || !seekerConditions.address.lat}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all ${
-                      !seekerConditions.age || allJobs.length === 0 || !seekerConditions.address.lat
-                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                        : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg'
-                    }`}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm transition-all bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
                   >
-                    <Search size={20} />案件をピックアップ
+                    <Search size={17} />案件をピックアップ
                   </button>
                 </div>
               </div>
-              <div className="mt-3 flex items-center gap-4 text-sm text-slate-600">
-                <div className="flex items-center gap-2">
-                  <Info size={16} className="text-indigo-600" />
-                  <span>
-                    <strong className="text-indigo-600">案件をピックアップ:</strong> 年齢・性別などの条件でマッチング
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Info size={16} className="text-purple-600" />
-                  <span>
-                    <strong className="text-purple-600">全件表示モード:</strong> 条件不要で全案件を表示
-                  </span>
-                </div>
-              </div>
-              {!seekerConditions.address.lat && (
-                <p className="text-xs text-amber-600 mt-2">※「案件をピックアップ」には位置情報の取得が必要です</p>
+              {!seekerConditions.address.lat && seekerConditions.age && (
+                <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                  <AlertTriangle size={12} /> 「案件をピックアップ」には位置情報の取得が必要です
+                </p>
               )}
             </div>
           </div>
@@ -2975,166 +2921,188 @@ console.log('✅ Step 1: オブジェクト作成完了', typeof addressMasterMa
         {/* Step 2: ピックアップ結果 */}
         {mainStep === 2 && (
           <div className="space-y-4">
-            {/* サマリー */}
-            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl shadow-lg p-5 text-white">
+            {/* サマリーカード */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold">ピックアップ結果</h2>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">ピックアップ結果</h2>
+                  <div className="flex flex-wrap items-center gap-2 mt-1">
+                    {seekerConditions.age && (
+                      <span className="text-xs bg-gray-100 text-gray-600 rounded-md px-2 py-1">
+                        👤 {seekerConditions.age}歳 / {seekerConditions.gender}
+                      </span>
+                    )}
+                    {seekerConditions.commuteMethod && (
+                      <span className="text-xs bg-gray-100 text-gray-600 rounded-md px-2 py-1">
+                        🚗 {seekerConditions.commuteMethod} {seekerConditions.commuteTime}分以内
+                      </span>
+                    )}
+                    {seekerConditions.address.prefecture && (
+                      <span className="text-xs bg-gray-100 text-gray-600 rounded-md px-2 py-1">
+                        📍 {seekerConditions.address.prefecture}{seekerConditions.address.city}
+                      </span>
+                    )}
+                  </div>
+                </div>
                 <div className="flex gap-2">
-                  <button onClick={() => setMainStep(1)} className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm">条件を変更</button>
-                  <button onClick={exportToCSV} className="flex items-center gap-2 px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm">
-                    <Download size={16} />CSV出力
+                  <button
+                    onClick={() => setMainStep(1)}
+                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    ← 条件変更
+                  </button>
+                  <button
+                    onClick={exportToCSV}
+                    className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    <Download size={15} />CSV
                   </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-                <div className="bg-white/20 rounded-lg p-3 text-center">
-                  <div className="text-3xl font-bold">{pickedJobs.length}</div>
-                  <div className="text-sm opacity-90">該当案件</div>
-                </div>
-                <div className="bg-white/20 rounded-lg p-3 text-center">
-                  <div className="text-3xl font-bold">{selectedJobIds.size}</div>
-                  <div className="text-sm opacity-90">選択中</div>
-                </div>
-                <div className="bg-white/20 rounded-lg p-3 text-center">
-                  <div className="text-3xl font-bold">{pickedJobs.filter(j => j.companyRank === 'S').length}</div>
-                  <div className="text-sm opacity-90">Sランク</div>
-                </div>
-                <div className="bg-white/20 rounded-lg p-3 text-center">
-                  <div className="text-3xl font-bold">{pickedJobs.filter(j => (j.vacancy || 0) >= 5).length}</div>
-                  <div className="text-sm opacity-90">欠員5名以上</div>
-                </div>
-                <div className="bg-white/20 rounded-lg p-3 text-center">
-                  <div className="text-3xl font-bold">{pickedJobs.filter(j => j.fee >= 25).length}</div>
-                  <div className="text-sm opacity-90">Fee25万+</div>
-                </div>
-                <div className="bg-yellow-400/30 rounded-lg p-3 text-center border-2 border-yellow-300">
-                  <div className="text-3xl font-bold">{pickedJobs.filter(j => j.fee >= 40).length}</div>
-                  <div className="text-sm opacity-90">💎 Fee40万+</div>
-                </div>
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-2 text-sm">
-                {seekerConditions.age && <span className="bg-white/10 rounded px-2 py-1">👤 {seekerConditions.age}歳 / {seekerConditions.gender}</span>}
-                {seekerConditions.commuteMethod && (
-                  <span className="bg-white/10 rounded px-2 py-1">🚗 {seekerConditions.commuteMethod} {seekerConditions.commuteTime}分以内</span>
-                )}
-                {seekerConditions.address.prefecture && <span className="bg-white/10 rounded px-2 py-1">📍 {seekerConditions.address.prefecture}{seekerConditions.address.city}</span>}
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-2.5">
+                {[
+                  { value: pickedJobs.length, label: '該当案件', color: 'text-gray-900' },
+                  { value: selectedJobIds.size, label: '選択中', color: 'text-indigo-600' },
+                  { value: pickedJobs.filter(j => j.companyRank === 'S').length, label: 'Sランク', color: 'text-violet-600' },
+                  { value: pickedJobs.filter(j => (j.vacancy || 0) >= 5).length, label: '欠員5+', color: 'text-emerald-600' },
+                  { value: pickedJobs.filter(j => j.fee >= 25).length, label: 'Fee25万+', color: 'text-blue-600' },
+                  { value: pickedJobs.filter(j => j.fee >= 40).length, label: '💎 Fee40万+', color: 'text-amber-600', highlight: true },
+                ].map((stat, i) => (
+                  <div
+                    key={i}
+                    className={`rounded-lg p-3 text-center border ${stat.highlight ? 'border-amber-200 bg-amber-50' : 'border-gray-100 bg-gray-50'}`}
+                  >
+                    <div className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">{stat.label}</div>
+                  </div>
+                ))}
               </div>
             </div>
 
             {/* 検索・選択コントロール */}
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <div className="flex flex-col md:flex-row md:items-center gap-4">
-                <div className="flex-1">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="案件名、会社名、住所で検索..."
-                      className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    />
-                    {searchQuery && (
-                      <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                        <X size={18} />
-                      </button>
-                    )}
-                  </div>
-                  {searchQuery && <p className="text-xs text-slate-500 mt-1">{filteredPickedJobs.length}件がヒット</p>}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+              <div className="flex flex-col md:flex-row md:items-center gap-3">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="案件名・会社名・住所で検索..."
+                    className="w-full pl-9 pr-8 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 bg-gray-50 focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X size={15} />
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap gap-2">
                   {searchQuery ? (
                     <>
-                      <button onClick={selectAllFiltered} className="flex items-center gap-1 px-3 py-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg text-sm font-medium transition">
-                        <CheckSquare size={16} />検索結果を全選択
+                      <button onClick={selectAllFiltered} className="flex items-center gap-1 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-sm font-medium transition border border-indigo-200">
+                        <CheckSquare size={14} />検索結果を全選択
                       </button>
-                      <button onClick={deselectAllFiltered} className="flex items-center gap-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition">
-                        <Square size={16} />検索結果の選択解除
+                      <button onClick={deselectAllFiltered} className="flex items-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition border border-gray-200">
+                        <Square size={14} />選択解除
                       </button>
                     </>
                   ) : (
                     <>
-                      <button onClick={selectAll} className="flex items-center gap-1 px-3 py-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg text-sm font-medium transition">
-                        <CheckSquare size={16} />全選択
+                      <button onClick={selectAll} className="flex items-center gap-1 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-sm font-medium transition border border-indigo-200">
+                        <CheckSquare size={14} />全選択
                       </button>
-                      <button onClick={deselectAll} className="flex items-center gap-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition">
-                        <Square size={16} />全解除
+                      <button onClick={deselectAll} className="flex items-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition border border-gray-200">
+                        <Square size={14} />全解除
                       </button>
                     </>
                   )}
 
                   <button
                     onClick={() => setShowFilterOptions(!showFilterOptions)}
-                    className="flex items-center gap-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition"
+                    className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition border ${
+                      showFilterOptions ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200'
+                    }`}
                   >
-                    <Sliders size={16} />フィルター
+                    <Sliders size={14} />フィルター
                   </button>
 
-                  <button onClick={startFlowAnalysis} disabled={selectedJobIds.size === 0}
-                    className={selectedJobIds.size === 0 ? 'flex items-center gap-2 px-4 py-2 bg-slate-200 text-slate-400 rounded-lg text-sm font-bold cursor-not-allowed' : 'flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold transition shadow-md'}>
-                    <BarChart3 size={16} />分岐フロー分析 ({selectedJobIds.size})
+                  <button
+                    onClick={startFlowAnalysis}
+                    disabled={selectedJobIds.size === 0}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
+                  >
+                    <BarChart3 size={15} />分岐フロー分析
+                    {selectedJobIds.size > 0 && (
+                      <span className="bg-white/20 text-white text-xs px-1.5 py-0.5 rounded">
+                        {selectedJobIds.size}
+                      </span>
+                    )}
                   </button>
                 </div>
               </div>
 
+              {searchQuery && (
+                <p className="text-xs text-gray-500 mt-2">{filteredPickedJobs.length}件がヒット</p>
+              )}
+
               {showFilterOptions && (
-                <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-bold text-slate-700">並べ替え</h3>
-                    <button onClick={() => setShowFilterOptions(false)} className="text-slate-400 hover:text-slate-600">
-                      <X size={18} />
+                <div className="mt-3 pt-3 border-t border-gray-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold text-gray-700">並べ替え</h3>
+                    <button onClick={() => setShowFilterOptions(false)} className="text-gray-400 hover:text-gray-600">
+                      <X size={16} />
                     </button>
                   </div>
-                  <div className="flex flex-wrap gap-2 mb-4">
+                  <div className="flex flex-wrap gap-1.5 mb-3">
                     {[
-                      { value: 'score', label: '📊 スコア順', icon: TrendingUp },
-                      { value: 'fee', label: '💰 Fee順', icon: DollarSign },
-                      { value: 'distance', label: '📍 距離順', icon: Navigation },
-                      { value: 'vacancy', label: '👥 欠員数順', icon: Users },
-                      { value: 'salary', label: '💵 月収順', icon: TrendingUp },
-                      { value: 'placement', label: '📈 入社実績順', icon: Award }
+                      { value: 'score', label: 'スコア順' },
+                      { value: 'fee', label: 'Fee順' },
+                      { value: 'distance', label: '距離順' },
+                      { value: 'vacancy', label: '欠員数順' },
+                      { value: 'salary', label: '月収順' },
+                      { value: 'placement', label: '入社実績順' }
                     ].map(sort => (
                       <button
                         key={sort.value}
                         onClick={() => setSortBy(sort.value)}
-                        className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
                           sortBy === sort.value
                             ? 'bg-indigo-600 text-white'
-                            : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
                         }`}
                       >
-                        <sort.icon size={14} />
                         {sort.label}
                       </button>
                     ))}
                   </div>
 
-                  <div className="mb-3">
+                  <div>
                     <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-bold text-slate-700">派遣会社フィルター</h3>
-                      <div className="flex gap-2">
+                      <h3 className="text-sm font-semibold text-gray-700">派遣会社フィルター</h3>
+                      <div className="flex gap-3">
                         <button onClick={selectAllCompanies} className="text-xs text-indigo-600 hover:text-indigo-800">全選択</button>
-                        <button onClick={deselectAllCompanies} className="text-xs text-slate-600 hover:text-slate-800">全解除</button>
+                        <button onClick={deselectAllCompanies} className="text-xs text-gray-500 hover:text-gray-700">全解除</button>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1.5">
                       {uniqueCompanies.map(company => (
                         <button
                           key={company}
                           onClick={() => toggleCompanySelection(company)}
-                          className={`px-3 py-1.5 rounded-lg text-sm transition ${
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition ${
                             selectedCompanies.has(company)
                               ? 'bg-indigo-600 text-white'
-                              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
                           }`}
                         >
                           {company}
-                          <span className="ml-1 text-xs opacity-75">
-                            ({pickedJobs.filter(j => j.company === company).length})
-                          </span>
+                          <span className="ml-1 opacity-60">({pickedJobs.filter(j => j.company === company).length})</span>
                         </button>
                       ))}
                     </div>
@@ -3143,28 +3111,29 @@ console.log('✅ Step 1: オブジェクト作成完了', typeof addressMasterMa
               )}
             </div>
 
-            {/* タブナビゲーション */}
-            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-              <div className="flex border-b border-slate-200 overflow-x-auto">
+            {/* タブ + リスト/地図切り替え */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+              {/* タブナビ */}
+              <div className="flex border-b border-gray-200 overflow-x-auto">
                 {[
                   { key: 'all', label: '全件', count: pickedJobs.length },
-                  { key: 'day-shift', label: '日勤のみ', count: pickedJobs.filter(j => j.shiftWork === '日勤').length },
+                  { key: 'day-shift', label: '日勤', count: pickedJobs.filter(j => j.shiftWork === '日勤').length },
                   { key: 'other-shift', label: '交替制・夜勤', count: pickedJobs.filter(j => j.shiftWork !== '日勤').length },
                   { key: 'high-fee', label: '💎 Fee40万+', count: pickedJobs.filter(j => j.fee >= 40).length },
-                  { key: 'placement-history', label: '📈 入社実績あり', count: pickedJobs.filter(j => ((j.placement2025 || 0) + (j.placement2024 || 0)) > 0).length }
+                  { key: 'placement-history', label: '📈 入社実績', count: pickedJobs.filter(j => ((j.placement2025 || 0) + (j.placement2024 || 0)) > 0).length }
                 ].map(tab => (
                   <button
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key)}
-                    className={`px-6 py-3 font-medium transition-all whitespace-nowrap ${
+                    className={`px-5 py-3 text-sm font-medium transition-all whitespace-nowrap flex items-center gap-2 ${
                       activeTab === tab.key
-                        ? 'bg-indigo-50 text-indigo-700 border-b-2 border-indigo-600'
-                        : 'text-slate-600 hover:bg-slate-50'
+                        ? 'text-indigo-700 border-b-2 border-indigo-600 bg-indigo-50/50'
+                        : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                     }`}
                   >
                     {tab.label}
-                    <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
-                      activeTab === tab.key ? 'bg-indigo-200 text-indigo-800' : 'bg-slate-200 text-slate-600'
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                      activeTab === tab.key ? 'bg-indigo-200 text-indigo-800' : 'bg-gray-100 text-gray-500'
                     }`}>
                       {tab.count}
                     </span>
@@ -3172,38 +3141,34 @@ console.log('✅ Step 1: オブジェクト作成完了', typeof addressMasterMa
                 ))}
               </div>
 
-              {/* 🗺️ リスト/地図切り替え（新規追加） */}
-              <div className="bg-slate-50 border-b border-slate-200 px-4 py-3 flex items-center justify-between">
-                <div className="flex gap-2">
+              {/* リスト / 地図 切り替え */}
+              <div className="bg-gray-50 border-b border-gray-200 px-4 py-2.5 flex items-center justify-between">
+                <div className="flex gap-1.5">
                   <button
                     onClick={() => setViewMode('list')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition ${
                       viewMode === 'list'
-                        ? 'bg-indigo-600 text-white shadow-md'
-                        : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-gray-600 hover:bg-gray-200'
                     }`}
                   >
-                    <List size={18} />
-                    リスト表示 ({filteredPickedJobs.length}件)
+                    <List size={15} />リスト ({filteredPickedJobs.length})
                   </button>
                   <button
                     onClick={() => setViewMode('map')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition ${
                       viewMode === 'map'
-                        ? 'bg-indigo-600 text-white shadow-md'
-                        : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-gray-600 hover:bg-gray-200'
                     }`}
                   >
-                    <Map size={18} />
-                    地図表示 ({filteredPickedJobs.filter(j => j.lat && j.lng).length}件)
+                    <Map size={15} />地図 ({filteredPickedJobs.filter(j => j.lat && j.lng).length})
                   </button>
                 </div>
-
                 {viewMode === 'map' && (
-                  <div className="text-sm text-slate-600 flex items-center gap-2">
-                    <Info size={16} />
-                    マーカーをクリックして詳細を確認
-                  </div>
+                  <span className="text-xs text-gray-500 flex items-center gap-1">
+                    <Info size={13} />マーカーをクリックで詳細
+                  </span>
                 )}
               </div>
 
@@ -3211,107 +3176,119 @@ console.log('✅ Step 1: オブジェクト作成完了', typeof addressMasterMa
               {viewMode === 'list' && (
                 <div className="p-4">
                   {filteredPickedJobs.length === 0 ? (
-                    <div className="text-center py-12 text-slate-400">
-                      <Search size={48} className="mx-auto mb-3 opacity-50" />
-                      <p>条件に一致する案件がありません</p>
+                    <div className="text-center py-14 text-gray-400">
+                      <Search size={40} className="mx-auto mb-3 opacity-40" />
+                      <p className="text-sm">条件に一致する案件がありません</p>
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      {filteredPickedJobs.map(job => (
-                        <div
-                          key={job.id}
-                          className={`border-2 rounded-xl p-4 transition-all cursor-pointer ${
-                            selectedJobIds.has(job.id)
-                              ? 'border-indigo-500 bg-indigo-50'
-                              : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md'
-                          }`}
-                          onClick={() => toggleJobSelection(job.id)}
-                        >
-                          <div className="flex items-start gap-4">
-                            <div className="flex-shrink-0 pt-1">
-                              <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition ${
-                                selectedJobIds.has(job.id)
-                                  ? 'bg-indigo-600 border-indigo-600'
-                                  : 'border-slate-300 bg-white'
-                              }`}>
-                                {selectedJobIds.has(job.id) && <Check size={16} className="text-white" />}
-                              </div>
-                            </div>
-
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start justify-between gap-3 mb-2">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <CompanyRankBadge rank={job.companyRank} />
-                                    <span className="text-sm text-slate-600">{job.company}</span>
-                                  </div>
-                                  <h3 className="font-bold text-slate-800 text-lg leading-tight">{job.name}</h3>
-                                  <p className="text-sm text-slate-500 mt-1">{job.prefecture} {job.address}</p>
+                    <div className="space-y-2.5">
+                      {filteredPickedJobs.map(job => {
+                        const rankConfig = COMPANY_RANKS[job.companyRank] || COMPANY_RANKS['C'];
+                        const isSelected = selectedJobIds.has(job.id);
+                        const totalVacancy = (job.vacancy || 0) + (job.nextMonthVacancy || 0);
+                        const totalPlacement = (job.placement2025 || 0) + (job.placement2024 || 0);
+                        return (
+                          <div
+                            key={job.id}
+                            className={`rounded-xl border transition-all cursor-pointer overflow-hidden ${
+                              isSelected
+                                ? 'border-indigo-400 ring-2 ring-indigo-100 bg-white'
+                                : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+                            }`}
+                            style={{ borderLeft: `4px solid ${rankConfig.color}` }}
+                            onClick={() => toggleJobSelection(job.id)}
+                          >
+                            <div className="flex items-start gap-3 p-4">
+                              {/* チェックボックス */}
+                              <div className="flex-shrink-0 mt-0.5">
+                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition ${
+                                  isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'
+                                }`}>
+                                  {isSelected && <Check size={12} className="text-white" strokeWidth={3} />}
                                 </div>
+                              </div>
 
-                                <div className="flex flex-col gap-2 items-end flex-shrink-0">
-                                  {job.pickupScore !== undefined && (
-                                    <div className="flex items-center gap-1 px-3 py-1.5 bg-indigo-100 rounded-lg">
-                                      <Sparkles size={16} className="text-indigo-600" />
-                                      <span className="font-bold text-indigo-700">{job.pickupScore}点</span>
+                              {/* メインコンテンツ */}
+                              <div className="flex-1 min-w-0">
+                                {/* ヘッダー行 */}
+                                <div className="flex items-start justify-between gap-2 mb-2">
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                      <CompanyRankBadge rank={job.companyRank} />
+                                      <span className="text-xs text-gray-500 truncate">{job.company}</span>
+                                      {totalPlacement > 0 && (
+                                        <span className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 bg-teal-50 text-teal-700 rounded border border-teal-200">
+                                          <Award size={10} />実績{totalPlacement}名
+                                        </span>
+                                      )}
                                     </div>
-                                  )}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedJob(job);
-                                    }}
-                                    className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition"
-                                  >
-                                    <Eye size={14} />
-                                    詳細
-                                  </button>
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-                                <div className="bg-purple-50 rounded-lg p-2 border border-purple-200">
-                                  <div className="text-xs text-purple-600 mb-0.5">💰 Fee</div>
-                                  <div className="font-bold text-purple-700">{job.fee}万円</div>
-                                </div>
-                                <div className="bg-blue-50 rounded-lg p-2 border border-blue-200">
-                                  <div className="text-xs text-blue-600 mb-0.5">💵 月収</div>
-                                  <div className="font-bold text-blue-700">{job.monthlySalary}万円</div>
-                                </div>
-                                <div className="bg-emerald-50 rounded-lg p-2 border border-emerald-200">
-                                  <div className="text-xs text-emerald-600 mb-0.5">👥 欠員</div>
-                                  <div className="font-bold text-emerald-700">{(job.vacancy || 0) + (job.nextMonthVacancy || 0)}名</div>
-                                </div>
-                                <div className="bg-amber-50 rounded-lg p-2 border border-amber-200">
-                                  <div className="text-xs text-amber-600 mb-0.5">
-                                    {job.drivingTimeMin ? '🚗 車での通勤' : job.estimatedTime ? '🚗 推定通勤' : '⏰ 勤務形態'}
+                                    <h3 className="font-semibold text-gray-900 text-[15px] leading-snug">{job.name}</h3>
+                                    <p className="text-xs text-gray-500 mt-0.5">{job.prefecture} {job.address}</p>
                                   </div>
-                                  <div className="font-bold text-amber-700">
-                                    {job.drivingTimeMin ? `${job.drivingTimeMin}分` : job.estimatedTime ? `${job.estimatedTime}分` : job.shiftWork || '-'}
+                                  <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                                    {job.pickupScore !== undefined && (
+                                      <div className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600 rounded-lg">
+                                        <Sparkles size={12} className="text-indigo-200" />
+                                        <span className="text-[13px] font-bold text-white">{job.pickupScore}点</span>
+                                      </div>
+                                    )}
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setSelectedJob(job); }}
+                                      className="flex items-center gap-1 px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-xs font-medium transition"
+                                    >
+                                      <Eye size={12} />詳細
+                                    </button>
                                   </div>
                                 </div>
+
+                                {/* スタッツグリッド */}
+                                <div className="grid grid-cols-4 gap-2 mt-2">
+                                  <div className="bg-violet-50 border border-violet-100 rounded-lg p-2 text-center">
+                                    <div className="text-[10px] text-violet-500 font-medium">Fee</div>
+                                    <div className="text-sm font-bold text-violet-700">{job.fee}万</div>
+                                  </div>
+                                  <div className="bg-blue-50 border border-blue-100 rounded-lg p-2 text-center">
+                                    <div className="text-[10px] text-blue-500 font-medium">月収</div>
+                                    <div className="text-sm font-bold text-blue-700">{job.monthlySalary}万</div>
+                                  </div>
+                                  <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-2 text-center">
+                                    <div className="text-[10px] text-emerald-500 font-medium">欠員</div>
+                                    <div className="text-sm font-bold text-emerald-700">{totalVacancy}名</div>
+                                  </div>
+                                  <div className="bg-amber-50 border border-amber-100 rounded-lg p-2 text-center">
+                                    <div className="text-[10px] text-amber-500 font-medium">
+                                      {job.drivingTimeMin ? '車通勤' : job.estimatedTime ? '推定通勤' : '勤務形態'}
+                                    </div>
+                                    <div className="text-sm font-bold text-amber-700">
+                                      {job.drivingTimeMin ? `${job.drivingTimeMin}分` : job.estimatedTime ? `${job.estimatedTime}分` : (job.shiftWork || '-')}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* 距離・シフト */}
+                                {(job.drivingDistanceKm || job.distance || job.shiftWork) && (
+                                  <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-gray-500">
+                                    {job.drivingDistanceKm ? (
+                                      <span className="flex items-center gap-1">
+                                        <span className="text-indigo-400">🚗</span>
+                                        <span className="font-medium text-gray-700">{job.drivingDistanceKm.toFixed(1)}km</span>
+                                        <span>(車)</span>
+                                      </span>
+                                    ) : job.distance ? (
+                                      <span>📍 {job.distance.toFixed(1)}km <span className="text-gray-400">(直線)</span></span>
+                                    ) : null}
+                                    {job.shiftWork && (
+                                      <span className="flex items-center gap-1">
+                                        <Clock size={11} className="text-gray-400" />{job.shiftWork}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
                               </div>
-
-                              {(job.drivingDistanceKm || job.distance) && (
-                                <div className="mt-2 text-xs text-slate-600 flex items-center gap-4">
-                                  {job.drivingDistanceKm
-                                    ? <span className="flex items-center gap-1">🚗 <span className="font-medium">{job.drivingDistanceKm.toFixed(1)}km</span> <span className="text-slate-400">(車)</span></span>
-                                    : <span>📍 {job.distance?.toFixed(1)}km <span className="text-slate-400">(直線)</span></span>
-                                  }
-                                  {job.shiftWork && <span>⏰ {job.shiftWork}</span>}
-                                </div>
-                              )}
-
-                              {((job.placement2025 || 0) + (job.placement2024 || 0) > 0) && (
-                                <div className="mt-2 inline-flex items-center gap-1 px-2 py-1 bg-teal-50 text-teal-700 rounded text-xs">
-                                  <Award size={12} />
-                                  入社実績: {(job.placement2025 || 0) + (job.placement2024 || 0)}名
-                                </div>
-                              )}
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -3333,68 +3310,80 @@ console.log('✅ Step 1: オブジェクト作成完了', typeof addressMasterMa
 
         {/* Step 3: 分岐フロー分析 */}
         {mainStep === 3 && showAnalysis && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className="space-y-4">
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-slate-800">分岐フロー分析結果</h2>
-                <button onClick={() => { setMainStep(2); setShowAnalysis(false); }} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">分岐フロー分析結果</h2>
+                  <p className="text-sm text-gray-500 mt-0.5">{jobs.length}件の案件を分析</p>
+                </div>
+                <button
+                  onClick={() => { setMainStep(2); setShowAnalysis(false); }}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition"
+                >
                   ← ピックアップに戻る
                 </button>
               </div>
 
-              <div className="grid grid-cols-3 gap-4 mb-6">
-                <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-4 text-center">
+              <div className="grid grid-cols-3 gap-3 mb-5">
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
                   <div className="text-3xl font-bold text-emerald-700">{immediateMatches.length}</div>
-                  <div className="text-sm text-emerald-600 mt-1">✅ 即時紹介可能</div>
+                  <div className="text-xs font-medium text-emerald-600 mt-1 flex items-center justify-center gap-1">
+                    <CheckCircle size={12} />即時紹介可能
+                  </div>
                 </div>
-                <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4 text-center">
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
                   <div className="text-3xl font-bold text-amber-700">{possibleMatches.length}</div>
-                  <div className="text-sm text-amber-600 mt-1">⚠️ 条件緩和で紹介可</div>
+                  <div className="text-xs font-medium text-amber-600 mt-1 flex items-center justify-center gap-1">
+                    <AlertTriangle size={12} />条件緩和で紹介可
+                  </div>
                 </div>
-                <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 text-center">
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
                   <div className="text-3xl font-bold text-red-700">{impossibleMatches.length}</div>
-                  <div className="text-sm text-red-600 mt-1">❌ 紹介不可</div>
+                  <div className="text-xs font-medium text-red-600 mt-1 flex items-center justify-center gap-1">
+                    <XCircle size={12} />紹介不可
+                  </div>
                 </div>
               </div>
 
               {immediateMatches.length > 0 && (
-                <div className="mb-6">
+                <div className="mb-4">
                   <button
                     onClick={() => toggleConditionExpansion('immediate')}
-                    className="w-full flex items-center justify-between p-4 bg-emerald-50 hover:bg-emerald-100 rounded-lg border-2 border-emerald-200 transition"
+                    className="w-full flex items-center justify-between px-4 py-3 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200 transition"
                   >
-                    <div className="flex items-center gap-3">
-                      <CheckCircle className="text-emerald-600" size={24} />
-                      <span className="font-bold text-emerald-800 text-lg">即時紹介可能な案件 ({immediateMatches.length}件)</span>
+                    <div className="flex items-center gap-2.5">
+                      <CheckCircle className="text-emerald-600" size={18} />
+                      <span className="font-semibold text-emerald-800 text-sm">即時紹介可能な案件 <span className="font-normal">({immediateMatches.length}件)</span></span>
                     </div>
-                    {expandedConditions.has('immediate') ? <ChevronUp className="text-emerald-600" /> : <ChevronDown className="text-emerald-600" />}
+                    {expandedConditions.has('immediate') ? <ChevronUp className="text-emerald-600" size={18} /> : <ChevronDown className="text-emerald-600" size={18} />}
                   </button>
 
                   {expandedConditions.has('immediate') && (
-                    <div className="mt-3 space-y-3 pl-4">
+                    <div className="mt-2 space-y-2 pl-2">
                       {immediateMatches.map(result => (
-                        <div key={result.job.id} className="bg-white border-2 border-emerald-200 rounded-lg p-4">
+                        <div key={result.job.id} className="bg-white border border-emerald-200 rounded-lg p-4" style={{ borderLeft: '4px solid #10B981' }}>
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
                                 <CompanyRankBadge rank={result.job.companyRank} />
-                                <span className="text-sm text-slate-600">{result.job.company}</span>
+                                <span className="text-xs text-gray-500">{result.job.company}</span>
                               </div>
-                              <h3 className="font-bold text-slate-800">{result.job.name}</h3>
-                              <p className="text-sm text-slate-500">{result.job.prefecture} {result.job.address}</p>
+                              <h3 className="font-semibold text-gray-900 text-[15px]">{result.job.name}</h3>
+                              <p className="text-xs text-gray-500 mt-0.5">{result.job.prefecture} {result.job.address}</p>
                             </div>
-                            <div className="flex flex-col gap-2 items-end">
-                              <div className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-lg font-bold">
+                            <div className="flex flex-col gap-1.5 items-end">
+                              <div className="px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-sm font-bold">
                                 {result.score}点
                               </div>
-                              <button onClick={() => setSelectedJob(result.job)} className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">詳細 →</button>
+                              <button onClick={() => setSelectedJob(result.job)} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">詳細 →</button>
                             </div>
                           </div>
 
                           <div className="grid grid-cols-4 gap-2 text-sm">
-                            <div className="bg-purple-50 rounded p-2 text-center border border-purple-100">
-                              <div className="text-xs text-purple-600">Fee</div>
-                              <div className="font-bold text-purple-700">{result.job.fee}万</div>
+                            <div className="bg-violet-50 rounded p-2 text-center border border-violet-100">
+                              <div className="text-xs text-violet-500">Fee</div>
+                              <div className="font-bold text-violet-700">{result.job.fee}万</div>
                             </div>
                             <div className="bg-blue-50 rounded p-2 text-center border border-blue-100">
                               <div className="text-xs text-blue-600">月収</div>
@@ -3417,41 +3406,39 @@ console.log('✅ Step 1: オブジェクト作成完了', typeof addressMasterMa
               )}
 
               {possibleMatches.length > 0 && (
-                <div className="mb-6">
+                <div className="mb-3">
                   <button
                     onClick={() => toggleConditionExpansion('possible')}
-                    className="w-full flex items-center justify-between p-4 bg-amber-50 hover:bg-amber-100 rounded-lg border-2 border-amber-200 transition"
+                    className="w-full flex items-center justify-between px-4 py-3 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-200 transition"
                   >
-                    <div className="flex items-center gap-3">
-                      <AlertTriangle className="text-amber-600" size={24} />
-                      <span className="font-bold text-amber-800 text-lg">条件緩和で紹介可能な案件 ({possibleMatches.length}件)</span>
+                    <div className="flex items-center gap-2.5">
+                      <AlertTriangle className="text-amber-600" size={18} />
+                      <span className="font-semibold text-amber-800 text-sm">条件緩和で紹介可能 <span className="font-normal">({possibleMatches.length}件)</span></span>
                     </div>
-                    {expandedConditions.has('possible') ? <ChevronUp className="text-amber-600" /> : <ChevronDown className="text-amber-600" />}
+                    {expandedConditions.has('possible') ? <ChevronUp className="text-amber-600" size={18} /> : <ChevronDown className="text-amber-600" size={18} />}
                   </button>
 
                   {expandedConditions.has('possible') && (
-                    <div className="mt-3 space-y-3 pl-4">
+                    <div className="mt-2 space-y-2 pl-2">
                       {possibleMatches.map(result => (
-                        <div key={result.job.id} className="bg-white border-2 border-amber-200 rounded-lg p-4">
+                        <div key={result.job.id} className="bg-white border border-amber-200 rounded-lg p-4" style={{ borderLeft: '4px solid #F59E0B' }}>
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
                                 <CompanyRankBadge rank={result.job.companyRank} />
-                                <span className="text-sm text-slate-600">{result.job.company}</span>
+                                <span className="text-xs text-gray-500">{result.job.company}</span>
                               </div>
-                              <h3 className="font-bold text-slate-800">{result.job.name}</h3>
-                              <p className="text-sm text-slate-500">{result.job.prefecture} {result.job.address}</p>
+                              <h3 className="font-semibold text-gray-900 text-[15px]">{result.job.name}</h3>
+                              <p className="text-xs text-gray-500 mt-0.5">{result.job.prefecture} {result.job.address}</p>
                             </div>
-                            <div className="flex flex-col gap-2 items-end">
-                              <div className="px-3 py-1 bg-amber-100 text-amber-700 rounded-lg font-bold">
-                                {result.score}点
-                              </div>
-                              <button onClick={() => setSelectedJob(result.job)} className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">詳細 →</button>
+                            <div className="flex flex-col gap-1.5 items-end">
+                              <div className="px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-sm font-bold">{result.score}点</div>
+                              <button onClick={() => setSelectedJob(result.job)} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">詳細 →</button>
                             </div>
                           </div>
 
-                          <div className="bg-amber-50 rounded-lg p-3 mb-3">
-                            <h4 className="font-bold text-amber-800 text-sm mb-2">⚠️ 確認が必要な条件:</h4>
+                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
+                            <h4 className="text-xs font-semibold text-amber-800 mb-2 flex items-center gap-1"><AlertTriangle size={12} />確認が必要な条件</h4>
                             <div className="space-y-2">
                               {result.relaxableFailedConditions.map(cond => (
                                 <div key={cond.id} className="flex items-start gap-2">
@@ -3459,35 +3446,33 @@ console.log('✅ Step 1: オブジェクト作成完了', typeof addressMasterMa
                                     type="checkbox"
                                     checked={!!checkedItems[`${result.job.id}-${cond.id}`]}
                                     onChange={() => toggleCheckItem(result.job.id, cond.id)}
-                                    className="mt-1 w-4 h-4 text-amber-600"
+                                    className="mt-0.5 w-4 h-4 text-amber-600 rounded"
                                   />
                                   <div className="flex-1">
-                                    <p className="font-medium text-amber-800 text-sm">{cond.name}: {cond.question}</p>
-                                    <p className="text-xs text-amber-600 mt-0.5">
-                                      現在: {cond.current} → 案件要件: {cond.required}
-                                    </p>
+                                    <p className="text-xs font-medium text-amber-800">{cond.name}: {cond.question}</p>
+                                    <p className="text-[11px] text-amber-600 mt-0.5">現在: {cond.current} → 要件: {cond.required}</p>
                                   </div>
                                 </div>
                               ))}
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-4 gap-2 text-sm">
-                            <div className="bg-purple-50 rounded p-2 text-center border border-purple-100">
-                              <div className="text-xs text-purple-600">Fee</div>
-                              <div className="font-bold text-purple-700">{result.job.fee}万</div>
+                          <div className="grid grid-cols-4 gap-2">
+                            <div className="bg-violet-50 rounded p-2 text-center border border-violet-100">
+                              <div className="text-[10px] text-violet-500">Fee</div>
+                              <div className="text-sm font-bold text-violet-700">{result.job.fee}万</div>
                             </div>
                             <div className="bg-blue-50 rounded p-2 text-center border border-blue-100">
-                              <div className="text-xs text-blue-600">月収</div>
-                              <div className="font-bold text-blue-700">{result.job.monthlySalary}万</div>
+                              <div className="text-[10px] text-blue-500">月収</div>
+                              <div className="text-sm font-bold text-blue-700">{result.job.monthlySalary}万</div>
                             </div>
                             <div className="bg-emerald-50 rounded p-2 text-center border border-emerald-100">
-                              <div className="text-xs text-emerald-600">欠員</div>
-                              <div className="font-bold text-emerald-700">{result.job.vacancy || 0}名</div>
+                              <div className="text-[10px] text-emerald-500">欠員</div>
+                              <div className="text-sm font-bold text-emerald-700">{result.job.vacancy || 0}名</div>
                             </div>
                             <div className="bg-amber-50 rounded p-2 text-center border border-amber-100">
-                              <div className="text-xs text-amber-600">通勤</div>
-                              <div className="font-bold text-amber-700">{result.job.estimatedTime || '-'}分</div>
+                              <div className="text-[10px] text-amber-500">通勤</div>
+                              <div className="text-sm font-bold text-amber-700">{result.job.estimatedTime || '-'}分</div>
                             </div>
                           </div>
                         </div>
@@ -3501,36 +3486,36 @@ console.log('✅ Step 1: オブジェクト作成完了', typeof addressMasterMa
                 <div>
                   <button
                     onClick={() => toggleConditionExpansion('impossible')}
-                    className="w-full flex items-center justify-between p-4 bg-red-50 hover:bg-red-100 rounded-lg border-2 border-red-200 transition"
+                    className="w-full flex items-center justify-between px-4 py-3 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition"
                   >
-                    <div className="flex items-center gap-3">
-                      <XCircle className="text-red-600" size={24} />
-                      <span className="font-bold text-red-800 text-lg">紹介不可能な案件 ({impossibleMatches.length}件)</span>
+                    <div className="flex items-center gap-2.5">
+                      <XCircle className="text-red-500" size={18} />
+                      <span className="font-semibold text-red-800 text-sm">紹介不可 <span className="font-normal">({impossibleMatches.length}件)</span></span>
                     </div>
-                    {expandedConditions.has('impossible') ? <ChevronUp className="text-red-600" /> : <ChevronDown className="text-red-600" />}
+                    {expandedConditions.has('impossible') ? <ChevronUp className="text-red-500" size={18} /> : <ChevronDown className="text-red-500" size={18} />}
                   </button>
 
                   {expandedConditions.has('impossible') && (
-                    <div className="mt-3 space-y-3 pl-4">
+                    <div className="mt-2 space-y-2 pl-2">
                       {impossibleMatches.map(result => (
-                        <div key={result.job.id} className="bg-white border-2 border-red-200 rounded-lg p-4 opacity-75">
-                          <div className="flex items-start justify-between mb-3">
+                        <div key={result.job.id} className="bg-white border border-red-200 rounded-lg p-4 opacity-80" style={{ borderLeft: '4px solid #EF4444' }}>
+                          <div className="flex items-start justify-between mb-2">
                             <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
                                 <CompanyRankBadge rank={result.job.companyRank} />
-                                <span className="text-sm text-slate-600">{result.job.company}</span>
+                                <span className="text-xs text-gray-500">{result.job.company}</span>
                               </div>
-                              <h3 className="font-bold text-slate-800">{result.job.name}</h3>
-                              <p className="text-sm text-slate-500">{result.job.prefecture} {result.job.address}</p>
+                              <h3 className="font-semibold text-gray-900 text-[15px]">{result.job.name}</h3>
+                              <p className="text-xs text-gray-500">{result.job.prefecture} {result.job.address}</p>
                             </div>
-                            <button onClick={() => setSelectedJob(result.job)} className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">詳細 →</button>
+                            <button onClick={() => setSelectedJob(result.job)} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">詳細 →</button>
                           </div>
 
-                          <div className="bg-red-50 rounded-lg p-3">
-                            <h4 className="font-bold text-red-800 text-sm mb-2">❌ 絶対条件で不適合:</h4>
-                            <div className="space-y-1">
+                          <div className="bg-red-50 border border-red-100 rounded-lg p-2.5">
+                            <h4 className="text-[11px] font-semibold text-red-700 mb-1 flex items-center gap-1"><XCircle size={11} />絶対条件で不適合</h4>
+                            <div className="space-y-0.5">
                               {result.nonRelaxableFailedConditions.map(cond => (
-                                <p key={cond.id} className="text-sm text-red-700">• {cond.name}: {cond.reason}</p>
+                                <p key={cond.id} className="text-xs text-red-600">• {cond.name}: {cond.reason}</p>
                               ))}
                             </div>
                           </div>
@@ -3547,46 +3532,40 @@ console.log('✅ Step 1: オブジェクト作成完了', typeof addressMasterMa
 
       {/* 全案件マップモーダル */}
       {showAllJobsMap && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[85] flex items-start justify-center p-4 pt-16" onClick={() => setShowAllJobsMap(false)}>
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-[2px] z-[85] flex items-start justify-center p-4 pt-14" onClick={() => setShowAllJobsMap(false)}>
           <div
-            className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl flex flex-col overflow-hidden"
-            style={{ maxHeight: 'calc(100vh - 80px)' }}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl flex flex-col overflow-hidden border border-gray-200"
+            style={{ maxHeight: 'calc(100vh - 72px)' }}
             onClick={e => e.stopPropagation()}
           >
-            {/* モーダルヘッダー */}
-            <div className="flex items-center justify-between px-6 py-4 flex-shrink-0 border-b border-slate-100" style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #059669 100%)' }}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 flex-shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-                  <Map size={22} className="text-white" />
+                <div className="w-9 h-9 bg-indigo-600 rounded-lg flex items-center justify-center">
+                  <Map size={18} className="text-white" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-white">全案件マップ</h2>
-                  <p className="text-sm text-white/80">
+                  <h2 className="text-[15px] font-semibold text-gray-900">全案件マップ</h2>
+                  <p className="text-xs text-gray-500">
                     {allJobs.filter(j => j.lat && j.lng).length}件を表示
-                    {seekerConditions.address.lat && (
-                      <span className="ml-2 bg-white/20 px-2 py-0.5 rounded-full text-xs">
-                        📍 {seekerConditions.address.prefecture}{seekerConditions.address.city} から
-                      </span>
-                    )}
+                    {seekerConditions.address.lat && ` · ${seekerConditions.address.prefecture}${seekerConditions.address.city} から`}
                   </p>
                 </div>
               </div>
-              <button onClick={() => setShowAllJobsMap(false)} className="p-2 hover:bg-white/20 rounded-xl transition text-white">
-                <X size={22} />
+              <button
+                onClick={() => setShowAllJobsMap(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
+              >
+                <X size={18} />
               </button>
             </div>
 
-            {/* 求職者情報がない場合のヒント */}
             {!seekerConditions.address.lat && (
-              <div className="px-6 py-3 bg-amber-50 border-b border-amber-200 flex items-center gap-2 flex-shrink-0">
-                <Info size={16} className="text-amber-600 flex-shrink-0" />
-                <p className="text-sm text-amber-700">
-                  <span className="font-medium">ヒント:</span> 求職者の住所を設定すると、自宅からの距離感がわかります
-                </p>
+              <div className="px-5 py-2.5 bg-amber-50 border-b border-amber-200 flex items-center gap-2 flex-shrink-0">
+                <Info size={14} className="text-amber-600 flex-shrink-0" />
+                <p className="text-xs text-amber-700">住所を設定すると自宅からの距離感が表示されます</p>
               </div>
             )}
 
-            {/* 地図エリア */}
             <div className="p-4 overflow-y-auto flex-1">
               <AllJobsMapView
                 jobs={allJobs}
